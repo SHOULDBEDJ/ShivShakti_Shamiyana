@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const morgan = require('morgan');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const sharp = require('sharp');
 require('dotenv').config();
 const db = require('./database');
@@ -906,7 +906,7 @@ app.post('/api/gallery/albums/:id/photos', galleryUpload.array('photos'), async 
     if (!fs.existsSync(albumDir)) fs.mkdirSync(albumDir, { recursive: true });
     
     for (const file of files) {
-      const storedFilename = `${uuidv4()}${path.extname(file.originalname)}`;
+      const storedFilename = `${crypto.randomUUID()}${path.extname(file.originalname)}`;
       const relativePath = `uploads/gallery/${id}/${storedFilename}`;
       const fullPath = path.join(__dirname, relativePath);
       await sharp(file.buffer).resize({ width: 1920, withoutEnlargement: true }).toFile(fullPath);
