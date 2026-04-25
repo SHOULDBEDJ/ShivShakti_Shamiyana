@@ -1012,10 +1012,11 @@ app.put('/api/gallery/photos/move', async (req, res) => {
   }
 });
 
-app.get('/api/gallery/photos/:id/download', (req, res) => {
+app.get('/api/gallery/photos/:id/download', async (req, res) => {
   const { id } = req.params;
   try {
-    const photo = db.prepare('SELECT file_path, original_filename FROM gallery_photos WHERE id = ?').get(id);
+    const result = await db.execute({ sql: 'SELECT file_path, original_filename FROM gallery_photos WHERE id = ?', args: [id] });
+    const photo = result.rows[0];
     if (!photo) return res.status(404).send('Photo not found');
     res.download(path.join(__dirname, photo.file_path), photo.original_filename);
   } catch (err) {
@@ -1023,35 +1024,48 @@ app.get('/api/gallery/photos/:id/download', (req, res) => {
   }
 });
 
-app.get('/api/gallery/booking/:bookingId/album', (req, res) => {
+app.get('/api/gallery/booking/:bookingId/album', async (req, res) => {
   const { bookingId } = req.params;
   try {
-    let album = db.prepare('SELECT * FROM gallery_albums WHERE booking_id = ?').get(bookingId);
+    const albumResult = await db.execute({ sql: 'SELECT * FROM gallery_albums WHERE booking_id = ?', args: [bookingId] });
+    let album = albumResult.rows[0];
     if (!album) {
-      const booking = db.prepare('SELECT (SELECT name FROM customers WHERE customer_id = b.customer_id) as customer_name FROM bookings b WHERE booking_id = ?').get(bookingId);
+      const bookingResult = await db.execute({
+        sql: 'SELECT (SELECT name FROM customers WHERE customer_id = b.customer_id) as customer_name FROM bookings b WHERE booking_id = ?',
+        args: [bookingId]
+      });
+      const booking = bookingResult.rows[0];
       const name = `${booking ? booking.customer_name : 'Customer'} - ${bookingId}`;
-      const info = db.prepare('INSERT INTO gallery_albums (name, album_type, booking_id) VALUES (?, ?, ?)').run(name, 'booking', bookingId);
+      const info = await db.execute({
+        sql: 'INSERT INTO gallery_albums (name, album_type, booking_id) VALUES (?, ?, ?)',
+        args: [name, 'booking', bookingId]
+      });
       album = { id: info.lastInsertRowid, name, album_type: 'booking', booking_id: bookingId };
     }
-    const photos = db.prepare('SELECT * FROM gallery_photos WHERE album_id = ?').all(album.id);
-    res.json({ album, photos });
+    const photosResult = await db.execute({ sql: 'SELECT * FROM gallery_photos WHERE album_id = ?', args: [album.id] });
+    res.json({ album, photos: photosResult.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/gallery/inventory/:itemId/album', (req, res) => {
+app.get('/api/gallery/inventory/:itemId/album', async (req, res) => {
   const { itemId } = req.params;
   try {
-    let album = db.prepare('SELECT * FROM gallery_albums WHERE inventory_item_id = ?').get(itemId);
+    const albumResult = await db.execute({ sql: 'SELECT * FROM gallery_albums WHERE inventory_item_id = ?', args: [itemId] });
+    let album = albumResult.rows[0];
     if (!album) {
-      const item = db.prepare('SELECT name FROM inventory_items WHERE id = ?').get(itemId);
+      const itemResult = await db.execute({ sql: 'SELECT name FROM inventory_items WHERE id = ?', args: [itemId] });
+      const item = itemResult.rows[0];
       const name = `${item ? item.name : 'Item'} - Photos`;
-      const info = db.prepare('INSERT INTO gallery_albums (name, album_type, inventory_item_id) VALUES (?, ?, ?)').run(name, 'inventory', itemId);
+      const info = await db.execute({
+        sql: 'INSERT INTO gallery_albums (name, album_type, inventory_item_id) VALUES (?, ?, ?)',
+        args: [name, 'inventory', itemId]
+      });
       album = { id: info.lastInsertRowid, name, album_type: 'inventory', inventory_item_id: itemId };
     }
-    const photos = db.prepare('SELECT * FROM gallery_photos WHERE album_id = ?').all(album.id);
-    res.json({ album, photos });
+    const photosResult = await db.execute({ sql: 'SELECT * FROM gallery_photos WHERE album_id = ?', args: [album.id] });
+    res.json({ album, photos: photosResult.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1060,37 +1074,43 @@ app.get('/api/gallery/inventory/:itemId/album', (req, res) => {
 // --- REST OF ENDPOINTS ---
 // --- BUSINESS PROFILE ---
 
-app.get('/api/settings/business-profile', (req, res) => {
+app.get('/api/settings/business-profile', async (req, res) => {
   try {
-    const profile = db.prepare('SELECT * FROM business_profile WHERE id = 1').get();
-    res.json(profile || {});
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/settings/business-profile', settingsUpload.fields([{ name: 'deity_image', maxCount: 1 }, { name: 'static_qr_image', maxCount: 1 }]), (req, res) => {
+app.post('/api/settings/business-profile', settingsUpload.fields([{ name: 'deity_image', maxCount: 1 }, { name: 'static_qr_image', maxCount: 1 }]), async (req, res) => {
   const { name_kn, blessing_kn, phone1, phone2, phone3, address1_kn, address2_kn, address3_kn, upi_id, upi_name } = req.body;
   const deity_image_path = req.files && req.files['deity_image'] ? `uploads/settings/${req.files['deity_image'][0].filename}` : req.body.deity_image_path;
   const static_qr_path = req.files && req.files['static_qr_image'] ? `uploads/settings/${req.files['static_qr_image'][0].filename}` : req.body.static_qr_path;
 
   try {
-    const existing = db.prepare('SELECT id FROM business_profile WHERE id = 1').get();
-    if (existing) {
-      db.prepare(`
-        UPDATE business_profile SET 
-          name_kn = ?, blessing_kn = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
-          address1_kn = ?, address2_kn = ?, address3_kn = ?, 
-          deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = 1
-      `).run(name_kn, blessing_kn, phone1, phone2, phone3, address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path);
+    const existingResult = await db.execute('SELECT id FROM business_profile WHERE id = 1');
+    if (existingResult.rows[0]) {
+      await db.execute({
+        sql: `
+          UPDATE business_profile SET 
+            name_kn = ?, blessing_kn = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
+            address1_kn = ?, address2_kn = ?, address3_kn = ?, 
+            deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = 1
+        `,
+        args: [name_kn, blessing_kn, phone1, phone2, phone3, address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path]
+      });
     } else {
-      db.prepare(`
-        INSERT INTO business_profile (
-          id, name_kn, blessing_kn, phone1, phone2, phone3, 
-          address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path
-        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(name_kn, blessing_kn, phone1, phone2, phone3, address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path);
+      await db.execute({
+        sql: `
+          INSERT INTO business_profile (
+            id, name_kn, blessing_kn, phone1, phone2, phone3, 
+            address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path
+          ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [name_kn, blessing_kn, phone1, phone2, phone3, address1_kn, address2_kn, address3_kn, deity_image_path, upi_id, upi_name, static_qr_path]
+      });
     }
     res.json({ message: 'Profile updated' });
   } catch (err) {
@@ -1100,54 +1120,60 @@ app.post('/api/settings/business-profile', settingsUpload.fields([{ name: 'deity
 
 // --- REPORTS ---
 
-app.get('/api/reports/monthly', (req, res) => {
+app.get('/api/reports/monthly', async (req, res) => {
   const { month, year } = req.query; // format: MM, YYYY
   try {
-    const bookings = db.prepare(`
-      SELECT b.*, c.name as customer_name
-      FROM bookings b
-      JOIN customers c ON b.customer_id = c.customer_id
-      WHERE strftime('%m', b.booking_date) = ? AND strftime('%Y', b.booking_date) = ?
-      ORDER BY b.booking_date DESC
-    `).all(month, year);
-    res.json(bookings);
+    const result = await db.execute({
+      sql: `
+        SELECT b.*, c.name as customer_name
+        FROM bookings b
+        JOIN customers c ON b.customer_id = c.customer_id
+        WHERE strftime('%m', b.booking_date) = ? AND strftime('%Y', b.booking_date) = ?
+        ORDER BY b.booking_date DESC
+      `,
+      args: [month, year]
+    });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/reports/daily', (req, res) => {
+app.get('/api/reports/daily', async (req, res) => {
   const { date } = req.query; // format: YYYY-MM-DD
   try {
-    const bookings = db.prepare(`
-      SELECT b.*, c.name as customer_name
-      FROM bookings b
-      JOIN customers c ON b.customer_id = c.customer_id
-      WHERE date(b.booking_date) = date(?)
-      ORDER BY b.booking_date DESC
-    `).all(date);
-    res.json(bookings);
+    const result = await db.execute({
+      sql: `
+        SELECT b.*, c.name as customer_name
+        FROM bookings b
+        JOIN customers c ON b.customer_id = c.customer_id
+        WHERE date(b.booking_date) = date(?)
+        ORDER BY b.booking_date DESC
+      `,
+      args: [date]
+    });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/reports/pending-payments', (req, res) => {
+app.get('/api/reports/pending-payments', async (req, res) => {
   try {
-    const bookings = db.prepare(`
+    const result = await db.execute(`
       SELECT b.*, c.name as customer_name, c.phone as phone_number
       FROM bookings b
       JOIN customers c ON b.customer_id = c.customer_id
       WHERE b.payment_status = 'pending'
       ORDER BY b.booking_date ASC
-    `).all();
-    res.json(bookings);
+    `);
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/reports/booking-status', (req, res) => {
+app.get('/api/reports/booking-status', async (req, res) => {
   const { from, to, status } = req.query;
   try {
     let sql = `
@@ -1162,14 +1188,14 @@ app.get('/api/reports/booking-status', (req, res) => {
       params.push(status);
     }
     sql += ' ORDER BY b.booking_date DESC';
-    const bookings = db.prepare(sql).all(...params);
-    res.json(bookings);
+    const result = await db.execute({ sql, args: params });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/reports/vendor-borrows', (req, res) => {
+app.get('/api/reports/vendor-borrows', async (req, res) => {
   const { vendor_id, from, to } = req.query;
   try {
     let sql = `
@@ -1185,8 +1211,8 @@ app.get('/api/reports/vendor-borrows', (req, res) => {
       params.push(vendor_id);
     }
     sql += ' ORDER BY vb.borrowed_at DESC';
-    const borrows = db.prepare(sql).all(...params);
-    res.json(borrows);
+    const result = await db.execute({ sql, args: params });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
