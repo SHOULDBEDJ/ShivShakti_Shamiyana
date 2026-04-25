@@ -60,34 +60,36 @@ function generateID() {
   return id;
 }
 
-function getUniqueCustomerID() {
+async function getUniqueCustomerID() {
   let id = generateID();
-  const existing = db.prepare('SELECT id FROM customers WHERE customer_id = ?').get(id);
-  if (existing) return getUniqueCustomerID();
+  const result = await db.execute({ sql: 'SELECT id FROM customers WHERE customer_id = ?', args: [id] });
+  const existing = result.rows[0];
+  if (existing) return await getUniqueCustomerID();
   return id;
 }
 
-function getUniqueBookingID() {
+async function getUniqueBookingID() {
   let id = generateID();
-  const existing = db.prepare('SELECT id FROM bookings WHERE booking_id = ?').get(id);
-  if (existing) return getUniqueBookingID();
+  const result = await db.execute({ sql: 'SELECT id FROM bookings WHERE booking_id = ?', args: [id] });
+  const existing = result.rows[0];
+  if (existing) return await getUniqueBookingID();
   return id;
 }
 
 // --- ENDPOINTS ---
 
 // GET /api/generate/customer-id
-app.get('/api/generate/customer-id', (req, res) => {
-  res.json({ customer_id: getUniqueCustomerID() });
+app.get('/api/generate/customer-id', async (req, res) => {
+  res.json({ customer_id: await getUniqueCustomerID() });
 });
 
 // GET /api/generate/booking-id
-app.get('/api/generate/booking-id', (req, res) => {
-  res.json({ booking_id: getUniqueBookingID() });
+app.get('/api/generate/booking-id', async (req, res) => {
+  res.json({ booking_id: await getUniqueBookingID() });
 });
 
 // GET /api/customers/search
-app.get('/api/customers/search', (req, res) => {
+app.get('/api/customers/search', async (req, res) => {
   const { query } = req.query;
   if (!query) return res.json([]);
 
@@ -97,30 +99,37 @@ app.get('/api/customers/search', (req, res) => {
     LIMIT 10
   `;
   const pattern = `%${query}%`;
-  const customers = db.prepare(sql).all(pattern, pattern, pattern, pattern);
+  const result = await db.execute({ sql, args: [pattern, pattern, pattern, pattern] });
+  const customers = result.rows;
 
-  const enriched = customers.map(c => {
-    const lastBooking = db.prepare(`
-      SELECT pending_amount, discount_amount 
-      FROM bookings 
-      WHERE customer_id = ? 
-      ORDER BY created_at DESC LIMIT 1
-    `).get(c.customer_id);
+  const enriched = await Promise.all(customers.map(async (c) => {
+    const lbResult = await db.execute({
+      sql: `
+        SELECT pending_amount, discount_amount 
+        FROM bookings 
+        WHERE customer_id = ? 
+        ORDER BY created_at DESC LIMIT 1
+      `,
+      args: [c.customer_id]
+    });
+    const lastBooking = lbResult.rows[0];
     return { ...c, last_booking: lastBooking || null };
-  });
+  }));
 
   res.json(enriched);
 });
 
 // POST /api/customers
-app.post('/api/customers', (req, res) => {
+app.post('/api/customers', async (req, res) => {
   const { name, phone, place } = req.body;
   if (!name || !phone) return res.status(400).json({ error: 'Name and phone required' });
 
-  const customer_id = getUniqueCustomerID();
+  const customer_id = await getUniqueCustomerID();
   try {
-    const info = db.prepare('INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)')
-      .run(customer_id, name, phone, place);
+    const info = await db.execute({
+      sql: 'INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)',
+      args: [customer_id, name, phone, place]
+    });
     res.status(201).json({ id: info.lastInsertRowid, customer_id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -128,7 +137,7 @@ app.post('/api/customers', (req, res) => {
 });
 
 // GET /api/bookings
-app.get('/api/bookings', (req, res) => {
+app.get('/api/bookings', async (req, res) => {
   const { search, status } = req.query;
   let sql = `
     SELECT b.*, c.name as customer_name, c.phone as phone_number 
@@ -155,37 +164,41 @@ app.get('/api/bookings', (req, res) => {
   sql += ' ORDER BY b.created_at DESC';
 
   try {
-    const bookings = db.prepare(sql).all(...params);
-    res.json(bookings);
+    const result = await db.execute({ sql, args: params });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // GET /api/bookings/:id (booking_id)
-app.get('/api/bookings/:id', (req, res) => {
+app.get('/api/bookings/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const booking = db.prepare(`
-      SELECT b.*, c.name as customer_name, c.phone as phone_number 
-      FROM bookings b
-      JOIN customers c ON b.customer_id = c.customer_id
-      WHERE b.booking_id = ?
-    `).get(id);
+    const bookingResult = await db.execute({
+      sql: `
+        SELECT b.*, c.name as customer_name, c.phone as phone_number 
+        FROM bookings b
+        JOIN customers c ON b.customer_id = c.customer_id
+        WHERE b.booking_id = ?
+      `,
+      args: [id]
+    });
+    const booking = bookingResult.rows[0];
 
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const items = db.prepare('SELECT * FROM booking_items WHERE booking_id = ?').all(id);
-    const payments = db.prepare('SELECT * FROM payments WHERE booking_id = ? ORDER BY paid_at DESC').all(id);
+    const itemsResult = await db.execute({ sql: 'SELECT * FROM booking_items WHERE booking_id = ?', args: [id] });
+    const paymentsResult = await db.execute({ sql: 'SELECT * FROM payments WHERE booking_id = ? ORDER BY paid_at DESC', args: [id] });
 
-    res.json({ ...booking, items, payments });
+    res.json({ ...booking, items: itemsResult.rows, payments: paymentsResult.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // POST /api/bookings
-app.post('/api/bookings', voiceUpload.single('voice_note'), (req, res) => {
+app.post('/api/bookings', voiceUpload.single('voice_note'), async (req, res) => {
   const {
     booking_id, customer_id, customer_name, phone_number, delivery_takeaway_date, pricing_mode, delivery_charge,
     place, function_type, total_amount, advance_amount, discount_amount,
@@ -195,105 +208,122 @@ app.post('/api/bookings', voiceUpload.single('voice_note'), (req, res) => {
   const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
   const voice_note_path = req.file ? req.file.path : null;
 
-  const b_id = booking_id || getUniqueBookingID();
+  const b_id = booking_id || await getUniqueBookingID();
   const pending_amount = total_amount - advance_amount - discount_amount;
   const payment_status = pending_amount <= 0 ? 'paid' : 'pending';
 
-  const insertBooking = db.prepare(`
-    INSERT INTO bookings (
-      booking_id, customer_id, delivery_takeaway_date, pricing_mode, delivery_charge,
-      place, function_type, total_amount, advance_amount, discount_amount,
-      pending_amount, order_status, payment_status, voice_note_path
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  try {
+    const tx = await db.transaction('write');
+    try {
+      const existingCustomerResult = await tx.execute({ sql: 'SELECT 1 FROM customers WHERE customer_id = ?', args: [customer_id] });
+      if (!existingCustomerResult.rows[0]) {
+        await tx.execute({
+          sql: 'INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)',
+          args: [customer_id, customer_name || 'Unknown', phone_number || '0000000000', place || '']
+        });
+      }
 
-  const insertItem = db.prepare(`
-    INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
+      await tx.execute({
+        sql: `
+          INSERT INTO bookings (
+            booking_id, customer_id, delivery_takeaway_date, pricing_mode, delivery_charge,
+            place, function_type, total_amount, advance_amount, discount_amount,
+            pending_amount, order_status, payment_status, voice_note_path
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          b_id, customer_id, delivery_takeaway_date, pricing_mode, delivery_charge,
+          place, function_type, total_amount, advance_amount, discount_amount,
+          pending_amount, order_status || 'confirmed', payment_status, voice_note_path
+        ]
+      });
 
-  const insertPayment = db.prepare(`
-    INSERT INTO payments (booking_id, amount, method)
-    VALUES (?, ?, ?)
-  `);
+      for (const item of parsedItems) {
+        await tx.execute({
+          sql: 'INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)',
+          args: [b_id, item.item_id, item.item_name, item.quantity, item.unit_price, item.subtotal]
+        });
+      }
 
-  const transaction = db.transaction(() => {
-    const existingCustomer = db.prepare('SELECT 1 FROM customers WHERE customer_id = ?').get(customer_id);
-    if (!existingCustomer) {
-      db.prepare('INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)').run(
-        customer_id, customer_name || 'Unknown', phone_number || '0000000000', place || ''
-      );
-    }
+      if (advance_amount > 0) {
+        await tx.execute({
+          sql: 'INSERT INTO payments (booking_id, amount, method) VALUES (?, ?, ?)',
+          args: [b_id, advance_amount, payment_method]
+        });
+      }
 
-    insertBooking.run(
-      b_id, customer_id, delivery_takeaway_date, pricing_mode, delivery_charge,
-      place, function_type, total_amount, advance_amount, discount_amount,
-      pending_amount, order_status || 'confirmed', payment_status, voice_note_path
-    );
+      for (const item of parsedItems) {
+        if (item.vendor_id) {
+          const invItemResult = await tx.execute({ sql: 'SELECT available_quantity FROM inventory_items WHERE id = ?', args: [item.item_id] });
+          const invItem = invItemResult.rows[0];
+          const avail = invItem ? invItem.available_quantity : 0;
+          const shortfall = item.quantity - (avail || 0);
 
-    for (const item of parsedItems) {
-      insertItem.run(b_id, item.item_id, item.item_name, item.quantity, item.unit_price, item.subtotal);
-    }
-
-    if (advance_amount > 0) {
-      insertPayment.run(b_id, advance_amount, payment_method);
-    }
-
-    for (const item of parsedItems) {
-      if (item.vendor_id) {
-        const invItem = db.prepare('SELECT available_quantity FROM inventory_items WHERE id = ?').get(item.item_id);
-        const avail = invItem ? invItem.available_quantity : 0;
-        const shortfall = item.quantity - (avail || 0);
-
-        if (shortfall > 0) {
-          db.prepare(`
-            INSERT INTO vendor_borrows (vendor_id, booking_id, item_id, item_name, borrowed_quantity)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(item.vendor_id, b_id, item.item_id, item.item_name, shortfall);
+          if (shortfall > 0) {
+            await tx.execute({
+              sql: `
+                INSERT INTO vendor_borrows (vendor_id, booking_id, item_id, item_name, borrowed_quantity)
+                VALUES (?, ?, ?, ?, ?)
+              `,
+              args: [item.vendor_id, b_id, item.item_id, item.item_name, shortfall]
+            });
+          }
         }
       }
+      await tx.commit();
+      res.status(201).json({ booking_id: b_id });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
     }
-  });
-
-  try {
-    transaction();
-    res.status(201).json({ booking_id: b_id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // PUT /api/bookings/:id/payment (Add Installment)
-app.post('/api/bookings/:id/payment', (req, res) => {
+app.post('/api/bookings/:id/payment', async (req, res) => {
   const { id } = req.params;
   const { amount, method } = req.body;
   if (!amount || !method) return res.status(400).json({ error: 'Amount and method required' });
-  const insertPayment = db.prepare('INSERT INTO payments (booking_id, amount, method) VALUES (?, ?, ?)');
-  const updateBooking = db.prepare(`
-    UPDATE bookings 
-    SET advance_amount = advance_amount + ?, 
-        pending_amount = pending_amount - ?,
-        payment_status = CASE WHEN (pending_amount - ?) <= 0 THEN 'paid' ELSE 'pending' END
-    WHERE booking_id = ?
-  `);
-  const transaction = db.transaction(() => {
-    insertPayment.run(id, amount, method);
-    updateBooking.run(amount, amount, amount, id);
-  });
+
   try {
-    transaction();
-    res.json({ message: 'Payment added successfully' });
+    const tx = await db.transaction('write');
+    try {
+      await tx.execute({
+        sql: 'INSERT INTO payments (booking_id, amount, method) VALUES (?, ?, ?)',
+        args: [id, amount, method]
+      });
+      await tx.execute({
+        sql: `
+          UPDATE bookings 
+          SET advance_amount = advance_amount + ?, 
+              pending_amount = pending_amount - ?,
+              payment_status = CASE WHEN (pending_amount - ?) <= 0 THEN 'paid' ELSE 'pending' END
+          WHERE booking_id = ?
+        `,
+        args: [amount, amount, amount, id]
+      });
+      await tx.commit();
+      res.json({ message: 'Payment added successfully' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // PUT /api/bookings/:id/status
-app.put('/api/bookings/:id/status', (req, res) => {
+app.put('/api/bookings/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   try {
-    db.prepare('UPDATE bookings SET order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE booking_id = ?').run(status, id);
+    await db.execute({
+      sql: 'UPDATE bookings SET order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE booking_id = ?',
+      args: [status, id]
+    });
     res.json({ message: 'Status updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -301,63 +331,83 @@ app.put('/api/bookings/:id/status', (req, res) => {
 });
 
 // POST /api/bookings/:id/return
-app.post('/api/bookings/:id/return', (req, res) => {
+app.post('/api/bookings/:id/return', async (req, res) => {
   const { id } = req.params;
   const { items, payment_amount, payment_method, discount_amount, missing_total, final_payable } = req.body;
   
-  const transaction = db.transaction(() => {
-    let allReturned = true;
-    for (const item of items) {
-      db.prepare(`UPDATE booking_items SET return_status = ?, missing_quantity = ? WHERE booking_id = ? AND item_id = ?`)
-        .run(item.return_status, item.missing_quantity || 0, id, item.item_id);
-      
-      if (item.return_status === 'missing' || item.return_status === 'partial') {
-        allReturned = false;
-      }
-    }
-
-    // Update Discount
-    if (discount_amount > 0) {
-      db.prepare('UPDATE bookings SET discount_amount = discount_amount + ? WHERE booking_id = ?').run(discount_amount, id);
-    }
-
-    // Process Payment if any
-    if (payment_amount > 0) {
-      db.prepare('INSERT INTO payments (booking_id, amount, method) VALUES (?, ?, ?)').run(id, payment_amount, payment_method);
-      db.prepare('UPDATE bookings SET advance_amount = advance_amount + ? WHERE booking_id = ?').run(payment_amount, id);
-    }
-
-    // Recalculate Pending Amount
-    // Pending = (Original Total + Missing Total) - (Advance + Discount)
-    const b = db.prepare('SELECT total_amount, advance_amount, discount_amount FROM bookings WHERE booking_id = ?').get(id);
-    const newPending = (b.total_amount + (missing_total || 0)) - (b.advance_amount + b.discount_amount);
-    
-    const paymentStatus = newPending <= 0 ? 'paid' : 'pending';
-    const orderStatus = (allReturned && newPending <= 0) ? 'complete_returned' : 'returned_partial';
-
-    db.prepare(`
-      UPDATE bookings 
-      SET pending_amount = ?, 
-          payment_status = ?, 
-          order_status = ?,
-          updated_at = CURRENT_TIMESTAMP 
-      WHERE booking_id = ?
-    `).run(Math.max(0, newPending), paymentStatus, orderStatus, id);
-  });
-
   try {
-    transaction();
-    res.json({ message: 'Return processed successfully' });
+    const tx = await db.transaction('write');
+    try {
+      let allReturned = true;
+      for (const item of items) {
+        await tx.execute({
+          sql: `UPDATE booking_items SET return_status = ?, missing_quantity = ? WHERE booking_id = ? AND item_id = ?`,
+          args: [item.return_status, item.missing_quantity || 0, id, item.item_id]
+        });
+        
+        if (item.return_status === 'missing' || item.return_status === 'partial') {
+          allReturned = false;
+        }
+      }
+
+      // Update Discount
+      if (discount_amount > 0) {
+        await tx.execute({
+          sql: 'UPDATE bookings SET discount_amount = discount_amount + ? WHERE booking_id = ?',
+          args: [discount_amount, id]
+        });
+      }
+
+      // Process Payment if any
+      if (payment_amount > 0) {
+        await tx.execute({
+          sql: 'INSERT INTO payments (booking_id, amount, method) VALUES (?, ?, ?)',
+          args: [id, payment_amount, payment_method]
+        });
+        await tx.execute({
+          sql: 'UPDATE bookings SET advance_amount = advance_amount + ? WHERE booking_id = ?',
+          args: [payment_amount, id]
+        });
+      }
+
+      // Recalculate Pending Amount
+      const bResult = await tx.execute({
+        sql: 'SELECT total_amount, advance_amount, discount_amount FROM bookings WHERE booking_id = ?',
+        args: [id]
+      });
+      const b = bResult.rows[0];
+      const newPending = (b.total_amount + (missing_total || 0)) - (b.advance_amount + b.discount_amount);
+      
+      const paymentStatus = newPending <= 0 ? 'paid' : 'pending';
+      const orderStatus = (allReturned && newPending <= 0) ? 'complete_returned' : 'returned_partial';
+
+      await tx.execute({
+        sql: `
+          UPDATE bookings 
+          SET pending_amount = ?, 
+              payment_status = ?, 
+              order_status = ?,
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE booking_id = ?
+        `,
+        args: [Math.max(0, newPending), paymentStatus, orderStatus, id]
+      });
+      await tx.commit();
+      res.json({ message: 'Return processed successfully' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE /api/bookings/:id
-app.delete('/api/bookings/:id', (req, res) => {
+app.delete('/api/bookings/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    db.prepare('DELETE FROM bookings WHERE booking_id = ?').run(id);
+    await db.execute({ sql: 'DELETE FROM bookings WHERE booking_id = ?', args: [id] });
     res.json({ message: 'Booking deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -366,34 +416,38 @@ app.delete('/api/bookings/:id', (req, res) => {
 
 // --- ORDER LINKS & PUBLIC ORDERS ---
 
-app.post('/api/order-links', (req, res) => {
+app.post('/api/order-links', async (req, res) => {
   const token = require('crypto').randomBytes(16).toString('hex');
   const expires_at = new Date();
   expires_at.setHours(expires_at.getHours() + 24);
   try {
-    const info = db.prepare('INSERT INTO order_links (token, expires_at) VALUES (?, ?)').run(token, expires_at.toISOString());
+    const info = await db.execute({
+      sql: 'INSERT INTO order_links (token, expires_at) VALUES (?, ?)',
+      args: [token, expires_at.toISOString()]
+    });
     res.json({ id: info.lastInsertRowid, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/order-links', (req, res) => {
+app.get('/api/order-links', async (req, res) => {
   try {
-    const links = db.prepare('SELECT * FROM order_links ORDER BY created_at DESC').all();
-    res.json(links);
+    const result = await db.execute('SELECT * FROM order_links ORDER BY created_at DESC');
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/public-orders/validate/:token', (req, res) => {
+app.get('/api/public-orders/validate/:token', async (req, res) => {
   const { token } = req.params;
   try {
-    const link = db.prepare('SELECT * FROM order_links WHERE token = ? AND status = "active"').get(token);
+    const result = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
+    const link = result.rows[0];
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (new Date() > new Date(link.expires_at)) {
-      db.prepare('UPDATE order_links SET status = "expired" WHERE token = ?').run(token);
+      await db.execute({ sql: 'UPDATE order_links SET status = "expired" WHERE token = ?', args: [token] });
       return res.status(404).json({ error: 'Link expired' });
     }
     res.json({ valid: true });
@@ -402,24 +456,44 @@ app.get('/api/public-orders/validate/:token', (req, res) => {
   }
 });
 
-app.post('/api/public-orders/:token', (req, res) => {
+app.post('/api/public-orders/:token', async (req, res) => {
   const { token } = req.params;
   const { customer_name, phone_number, place, pricing_mode, delivery_takeaway_date, items, total_amount } = req.body;
   try {
-    const link = db.prepare('SELECT * FROM order_links WHERE token = ? AND status = "active"').get(token);
+    const linkResult = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
+    const link = linkResult.rows[0];
     if (!link) return res.status(404).json({ error: 'Invalid link' });
-    let customer = db.prepare('SELECT customer_id FROM customers WHERE phone = ?').get(phone_number);
-    let customer_id = customer ? customer.customer_id : getUniqueCustomerID();
-    if (!customer) db.prepare('INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)').run(customer_id, customer_name, phone_number, place);
-    const booking_id = getUniqueBookingID();
-    db.transaction(() => {
-      db.prepare(`INSERT INTO bookings (booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, pending_amount, order_status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, total_amount, 'pending_request', 'pending');
-      for (const item of items) {
-        db.prepare(`INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)`).run(booking_id, item.item_id, item.item_name, item.quantity, item.unit_price, item.subtotal);
+    
+    const customerResult = await db.execute({ sql: 'SELECT customer_id FROM customers WHERE phone = ?', args: [phone_number] });
+    const customer = customerResult.rows[0];
+    let customer_id = customer ? customer.customer_id : await getUniqueCustomerID();
+    
+    const tx = await db.transaction('write');
+    try {
+      if (!customer) {
+        await tx.execute({
+          sql: 'INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)',
+          args: [customer_id, customer_name, phone_number, place]
+        });
       }
-      db.prepare('UPDATE order_links SET status = "used" WHERE token = ?').run(token);
-    })();
-    res.status(201).json({ booking_id, message: 'Order sent!' });
+      const booking_id = await getUniqueBookingID();
+      await tx.execute({
+        sql: `INSERT INTO bookings (booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, pending_amount, order_status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, total_amount, 'pending_request', 'pending']
+      });
+      for (const item of items) {
+        await tx.execute({
+          sql: `INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [booking_id, item.item_id, item.item_name, item.quantity, item.unit_price, item.subtotal]
+        });
+      }
+      await tx.execute({ sql: 'UPDATE order_links SET status = "used" WHERE token = ?', args: [token] });
+      await tx.commit();
+      res.status(201).json({ booking_id, message: 'Order sent!' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -427,122 +501,182 @@ app.post('/api/public-orders/:token', (req, res) => {
 
 // --- INVENTORY ---
 
-app.get('/api/inventory/categories', (req, res) => {
-  try { res.json(db.prepare('SELECT * FROM categories ORDER BY name').all()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.get('/api/inventory/categories', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM categories ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/inventory/categories', (req, res) => {
+app.post('/api/inventory/categories', async (req, res) => {
   const { name, name_kn, parent_id } = req.body;
   try {
-    const info = db.prepare('INSERT INTO categories (name, name_kn, parent_id) VALUES (?, ?, ?)').run(name, name_kn || null, parent_id || null);
+    const info = await db.execute({
+      sql: 'INSERT INTO categories (name, name_kn, parent_id) VALUES (?, ?, ?)',
+      args: [name, name_kn || null, parent_id || null]
+    });
     res.status(201).json({ id: info.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/inventory/categories/:id', (req, res) => {
+app.put('/api/inventory/categories/:id', async (req, res) => {
   const { name, name_kn, parent_id } = req.body;
   try {
-    db.prepare('UPDATE categories SET name = ?, name_kn = ?, parent_id = ? WHERE id = ?').run(name, name_kn || null, parent_id || null, req.params.id);
+    await db.execute({
+      sql: 'UPDATE categories SET name = ?, name_kn = ?, parent_id = ? WHERE id = ?',
+      args: [name, name_kn || null, parent_id || null, req.params.id]
+    });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/inventory/categories/:id', (req, res) => {
+app.delete('/api/inventory/categories/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+    await db.execute({ sql: 'DELETE FROM categories WHERE id = ?', args: [req.params.id] });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/inventory/items', (req, res) => {
-  try { res.json(db.prepare('SELECT * FROM inventory_items ORDER BY name').all()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.get('/api/inventory/items', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM inventory_items ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/inventory/items/non-category', (req, res) => {
-  try { res.json(db.prepare('SELECT * FROM inventory_items WHERE category_id IS NULL ORDER BY name').all()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.get('/api/inventory/items/non-category', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM inventory_items WHERE category_id IS NULL ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/inventory/items', (req, res) => {
+app.post('/api/inventory/items', async (req, res) => {
   const { name, category_id, takeaway_price, delivery_price, available_quantity } = req.body;
   try {
-    const info = db.prepare('INSERT INTO inventory_items (name, category_id, takeaway_price, delivery_price, available_quantity) VALUES (?, ?, ?, ?, ?)').run(name, category_id || null, takeaway_price, delivery_price, available_quantity);
+    const info = await db.execute({
+      sql: 'INSERT INTO inventory_items (name, category_id, takeaway_price, delivery_price, available_quantity) VALUES (?, ?, ?, ?, ?)',
+      args: [name, category_id || null, takeaway_price, delivery_price, available_quantity]
+    });
     res.status(201).json({ id: info.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/inventory/items/:id', (req, res) => {
+app.put('/api/inventory/items/:id', async (req, res) => {
   const { id } = req.params;
   const { name, category_id, takeaway_price, delivery_price, available_quantity } = req.body;
   try {
-    db.prepare('UPDATE inventory_items SET name = ?, category_id = ?, takeaway_price = ?, delivery_price = ?, available_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, category_id || null, takeaway_price, delivery_price, available_quantity, id);
+    await db.execute({
+      sql: 'UPDATE inventory_items SET name = ?, category_id = ?, takeaway_price = ?, delivery_price = ?, available_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [name, category_id || null, takeaway_price, delivery_price, available_quantity, id]
+    });
     res.json({ message: 'Updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/inventory/items/:id', (req, res) => {
-  try { db.prepare('DELETE FROM inventory_items WHERE id = ?').run(req.params.id); res.json({ message: 'Deleted' }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.delete('/api/inventory/items/:id', async (req, res) => {
+  try {
+    await db.execute({ sql: 'DELETE FROM inventory_items WHERE id = ?', args: [req.params.id] });
+    res.json({ message: 'Deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- VENDORS ---
 
-app.get('/api/vendors', (req, res) => {
-  try { res.json(db.prepare('SELECT v.*, (SELECT COUNT(*) FROM vendor_borrows WHERE vendor_id = v.id AND return_status != "returned") as pending_count FROM vendors v ORDER BY name').all()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/vendors', (req, res) => {
-  const { name, phone, notes } = req.body;
-  try { const info = db.prepare('INSERT INTO vendors (name, phone, notes) VALUES (?, ?, ?)').run(name, phone, notes); res.status(201).json({ id: info.lastInsertRowid }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.put('/api/vendors/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, phone, notes } = req.body;
-  try { db.prepare('UPDATE vendors SET name = ?, phone = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name, phone, notes, id); res.json({ message: 'Updated' }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/vendors/:id', (req, res) => {
-  try { db.prepare('DELETE FROM vendors WHERE id = ?').run(req.params.id); res.json({ message: 'Deleted' }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/vendors/:id/borrows', (req, res) => {
-  try { res.json(db.prepare('SELECT vb.*, b.delivery_takeaway_date as borrowed_at_date FROM vendor_borrows vb JOIN bookings b ON vb.booking_id = b.booking_id WHERE vb.vendor_id = ? ORDER BY vb.borrowed_at DESC').all(req.params.id)); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.put('/api/vendors/borrows/:id', (req, res) => {
-  const { id } = req.params;
-  const { return_quantity, amount_paid } = req.body;
+app.get('/api/vendors', async (req, res) => {
   try {
-    const borrow = db.prepare('SELECT * FROM vendor_borrows WHERE id = ?').get(id);
-    const total_returned = (borrow.return_quantity || 0) + Number(return_quantity);
-    const total_paid = (borrow.amount_paid || 0) + Number(amount_paid || 0);
-    const status = total_returned >= borrow.borrowed_quantity ? 'returned' : 'partial';
-    db.transaction(() => {
-      db.prepare(`UPDATE vendor_borrows SET return_quantity = ?, amount_paid = ?, return_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(total_returned, total_paid, status, id);
-      if (Number(return_quantity) > 0 || Number(amount_paid) > 0) db.prepare(`INSERT INTO vendor_payments (vendor_id, vendor_borrow_id, item_name, quantity_returned, amount_paid) VALUES (?, ?, ?, ?, ?)`).run(borrow.vendor_id, id, borrow.item_name, return_quantity, amount_paid);
-    })();
+    const result = await db.execute('SELECT v.*, (SELECT COUNT(*) FROM vendor_borrows WHERE vendor_id = v.id AND return_status != "returned") as pending_count FROM vendors v ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/vendors', async (req, res) => {
+  const { name, phone, notes } = req.body;
+  try {
+    const info = await db.execute({
+      sql: 'INSERT INTO vendors (name, phone, notes) VALUES (?, ?, ?)',
+      args: [name, phone, notes]
+    });
+    res.status(201).json({ id: info.lastInsertRowid });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/vendors/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, notes } = req.body;
+  try {
+    await db.execute({
+      sql: 'UPDATE vendors SET name = ?, phone = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [name, phone, notes, id]
+    });
     res.json({ message: 'Updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/vendors/:id/payments', (req, res) => {
-  try { res.json(db.prepare('SELECT * FROM vendor_payments WHERE vendor_id = ? ORDER BY paid_at DESC').all(req.params.id)); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.delete('/api/vendors/:id', async (req, res) => {
+  try {
+    await db.execute({ sql: 'DELETE FROM vendors WHERE id = ?', args: [req.params.id] });
+    res.json({ message: 'Deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/inventory/items/:id/availability', (req, res) => {
+app.get('/api/vendors/:id/borrows', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT vb.*, b.delivery_takeaway_date as borrowed_at_date FROM vendor_borrows vb JOIN bookings b ON vb.booking_id = b.booking_id WHERE vb.vendor_id = ? ORDER BY vb.borrowed_at DESC',
+      args: [req.params.id]
+    });
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/vendors/borrows/:id', async (req, res) => {
+  const { id } = req.params;
+  const { return_quantity, amount_paid } = req.body;
+  try {
+    const borrowResult = await db.execute({ sql: 'SELECT * FROM vendor_borrows WHERE id = ?', args: [id] });
+    const borrow = borrowResult.rows[0];
+    const total_returned = (borrow.return_quantity || 0) + Number(return_quantity);
+    const total_paid = (borrow.amount_paid || 0) + Number(amount_paid || 0);
+    const status = total_returned >= borrow.borrowed_quantity ? 'returned' : 'partial';
+    
+    const tx = await db.transaction('write');
+    try {
+      await tx.execute({
+        sql: `UPDATE vendor_borrows SET return_quantity = ?, amount_paid = ?, return_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        args: [total_returned, total_paid, status, id]
+      });
+      if (Number(return_quantity) > 0 || Number(amount_paid) > 0) {
+        await tx.execute({
+          sql: `INSERT INTO vendor_payments (vendor_id, vendor_borrow_id, item_name, quantity_returned, amount_paid) VALUES (?, ?, ?, ?, ?)`,
+          args: [borrow.vendor_id, id, borrow.item_name, return_quantity, amount_paid]
+        });
+      }
+      await tx.commit();
+      res.json({ message: 'Updated' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/vendors/:id/payments', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT * FROM vendor_payments WHERE vendor_id = ? ORDER BY paid_at DESC',
+      args: [req.params.id]
+    });
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/inventory/items/:id/availability', async (req, res) => {
   const { id } = req.params;
   const { quantity } = req.query;
   try {
-    const item = db.prepare('SELECT available_quantity FROM inventory_items WHERE id = ?').get(id);
+    const itemResult = await db.execute({ sql: 'SELECT available_quantity FROM inventory_items WHERE id = ?', args: [id] });
+    const item = itemResult.rows[0];
     const avail = item ? item.available_quantity : 0;
     res.json({ sufficient: avail !== null ? avail >= Number(quantity) : false, available: avail, shortfall: avail !== null ? Math.max(0, Number(quantity) - avail) : Number(quantity) });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -550,66 +684,101 @@ app.get('/api/inventory/items/:id/availability', (req, res) => {
 
 // --- SETTINGS ---
 
-app.get('/api/settings/function-types', (req, res) => {
-  try { res.json(db.prepare('SELECT * FROM function_types ORDER BY name').all()); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.get('/api/settings/function-types', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM function_types ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/settings/function-types', (req, res) => {
+app.post('/api/settings/function-types', async (req, res) => {
   const { name } = req.body;
   try {
-    const existing = db.prepare('SELECT id FROM function_types WHERE LOWER(name) = LOWER(?)').get(name);
-    if (existing) return res.status(400).json({ error: 'Exists' });
-    db.prepare('INSERT INTO function_types (name) VALUES (?)').run(name);
+    const existingResult = await db.execute({ sql: 'SELECT id FROM function_types WHERE LOWER(name) = LOWER(?)', args: [name] });
+    if (existingResult.rows[0]) return res.status(400).json({ error: 'Exists' });
+    await db.execute({ sql: 'INSERT INTO function_types (name) VALUES (?)', args: [name] });
     res.status(201).json({ message: 'Added' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/settings/function-types/:id', (req, res) => {
-  try { db.prepare('UPDATE function_types SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.body.name, req.params.id); res.json({ message: 'Updated' }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+app.put('/api/settings/function-types/:id', async (req, res) => {
+  try {
+    await db.execute({
+      sql: 'UPDATE function_types SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [req.body.name, req.params.id]
+    });
+    res.json({ message: 'Updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/settings/function-types/:id', (req, res) => {
+app.delete('/api/settings/function-types/:id', async (req, res) => {
   try {
-    const type = db.prepare('SELECT name FROM function_types WHERE id = ?').get(req.params.id);
-    const count = db.prepare('SELECT COUNT(*) as count FROM bookings WHERE function_type = ?').get(type.name);
-    db.prepare('DELETE FROM function_types WHERE id = ?').run(req.params.id);
-    res.json({ count: count.count });
+    const typeResult = await db.execute({ sql: 'SELECT name FROM function_types WHERE id = ?', args: [req.params.id] });
+    const type = typeResult.rows[0];
+    const countResult = await db.execute({ sql: 'SELECT COUNT(*) as count FROM bookings WHERE function_type = ?', args: [type.name] });
+    await db.execute({ sql: 'DELETE FROM function_types WHERE id = ?', args: [req.params.id] });
+    res.json({ count: countResult.rows[0].count });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const ALL_TABLES = ['customers', 'order_links', 'categories', 'inventory_items', 'bookings', 'booking_items', 'payments', 'vendors', 'vendor_borrows', 'vendor_payments', 'function_types', 'gallery_albums', 'gallery_photos', 'gallery_photo_tags'];
 
-app.get('/api/settings/backup', (req, res) => {
+app.get('/api/settings/backup', async (req, res) => {
   try {
     const dump = {};
-    ALL_TABLES.forEach(t => dump[t] = db.prepare(`SELECT * FROM ${t}`).all());
+    for (const t of ALL_TABLES) {
+      const result = await db.execute(`SELECT * FROM ${t}`);
+      dump[t] = result.rows;
+    }
     res.json({ data: dump });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/settings/restore', (req, res) => {
+app.post('/api/settings/restore', async (req, res) => {
   try {
-    db.transaction(() => {
-      ALL_TABLES.reverse().forEach(t => db.prepare(`DELETE FROM ${t}`).run());
-      ALL_TABLES.reverse().forEach(t => {
+    const tx = await db.transaction('write');
+    try {
+      const reversedTables = [...ALL_TABLES].reverse();
+      for (const t of reversedTables) {
+        await tx.execute(`DELETE FROM ${t}`);
+      }
+      for (const t of ALL_TABLES) {
         const rows = req.body.data[t];
         if (rows && rows.length > 0) {
           const keys = Object.keys(rows[0]);
-          const stmt = db.prepare(`INSERT INTO ${t} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`);
-          rows.forEach(r => stmt.run(Object.values(r)));
+          for (const r of rows) {
+            await tx.execute({
+              sql: `INSERT INTO ${t} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`,
+              args: Object.values(r)
+            });
+          }
         }
-      });
-    })();
-    res.json({ message: 'Restored' });
+      }
+      await tx.commit();
+      res.json({ message: 'Restored' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/settings/delete-all', (req, res) => {
+app.delete('/api/settings/delete-all', async (req, res) => {
   if (req.body.confirm !== 'DELETE') return res.status(400).json({ error: 'Invalid' });
-  try { db.transaction(() => ALL_TABLES.reverse().forEach(t => db.prepare(`DELETE FROM ${t}`).run()))(); res.json({ message: 'Deleted' }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  try {
+    const tx = await db.transaction('write');
+    try {
+      const reversedTables = [...ALL_TABLES].reverse();
+      for (const t of reversedTables) {
+        await tx.execute(`DELETE FROM ${t}`);
+      }
+      await tx.commit();
+      res.json({ message: 'Deleted' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- GALLERY ENDPOINTS ---
@@ -620,7 +789,7 @@ const galleryUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-app.get('/api/gallery/albums', (req, res) => {
+app.get('/api/gallery/albums', async (req, res) => {
   const { type, search, sort, date_from, date_to } = req.query;
   try {
     let sql = `
@@ -641,45 +810,52 @@ app.get('/api/gallery/albums', (req, res) => {
     else if (sort === 'most_photos') sql += ` ORDER BY photo_count DESC`;
     else sql += ` ORDER BY a.created_at DESC`;
 
-    const albums = db.prepare(sql).all(...params);
-    res.json(albums);
+    const result = await db.execute({ sql, args: params });
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/gallery/albums', (req, res) => {
+app.post('/api/gallery/albums', async (req, res) => {
   const { name, album_type, booking_id, inventory_item_id } = req.body;
   try {
-    const info = db.prepare(`
-      INSERT INTO gallery_albums (name, album_type, booking_id, inventory_item_id)
-      VALUES (?, ?, ?, ?)
-    `).run(name, album_type, booking_id, inventory_item_id);
+    const info = await db.execute({
+      sql: `
+        INSERT INTO gallery_albums (name, album_type, booking_id, inventory_item_id)
+        VALUES (?, ?, ?, ?)
+      `,
+      args: [name, album_type, booking_id, inventory_item_id]
+    });
     res.status(201).json({ id: info.lastInsertRowid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/gallery/albums/:id', (req, res) => {
+app.put('/api/gallery/albums/:id', async (req, res) => {
   const { id } = req.params;
   const { name, cover_photo_id } = req.body;
   try {
-    db.prepare(`
-      UPDATE gallery_albums SET name = COALESCE(?, name), cover_photo_id = COALESCE(?, cover_photo_id), updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).run(name, cover_photo_id, id);
+    await db.execute({
+      sql: `
+        UPDATE gallery_albums SET name = COALESCE(?, name), cover_photo_id = COALESCE(?, cover_photo_id), updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `,
+      args: [name, cover_photo_id, id]
+    });
     res.json({ message: 'Album updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/gallery/albums/:id', (req, res) => {
+app.delete('/api/gallery/albums/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const photos = db.prepare('SELECT file_path FROM gallery_photos WHERE album_id = ?').all(id);
-    db.prepare('DELETE FROM gallery_albums WHERE id = ?').run(id);
+    const result = await db.execute({ sql: 'SELECT file_path FROM gallery_photos WHERE album_id = ?', args: [id] });
+    const photos = result.rows;
+    await db.execute({ sql: 'DELETE FROM gallery_albums WHERE id = ?', args: [id] });
     photos.forEach(p => {
       const fullPath = path.join(__dirname, p.file_path);
       if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
@@ -692,13 +868,17 @@ app.delete('/api/gallery/albums/:id', (req, res) => {
   }
 });
 
-app.get('/api/gallery/albums/:id/photos', (req, res) => {
+app.get('/api/gallery/albums/:id/photos', async (req, res) => {
   const { id } = req.params;
   try {
-    const photos = db.prepare(`
-      SELECT p.*, (SELECT GROUP_CONCAT(tag) FROM gallery_photo_tags WHERE photo_id = p.id) as tags
-      FROM gallery_photos p WHERE p.album_id = ? ORDER BY p.created_at DESC
-    `).all(id);
+    const result = await db.execute({
+      sql: `
+        SELECT p.*, (SELECT GROUP_CONCAT(tag) FROM gallery_photo_tags WHERE photo_id = p.id) as tags
+        FROM gallery_photos p WHERE p.album_id = ? ORDER BY p.created_at DESC
+      `,
+      args: [id]
+    });
+    const photos = result.rows;
     res.json(photos.map(p => ({ ...p, tags: p.tags ? p.tags.split(',') : [] })));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -714,18 +894,27 @@ app.post('/api/gallery/albums/:id/photos', galleryUpload.array('photos'), async 
     const results = [];
     const albumDir = path.join(galleryDir, id.toString());
     if (!fs.existsSync(albumDir)) fs.mkdirSync(albumDir, { recursive: true });
+    
     for (const file of files) {
       const storedFilename = `${uuidv4()}${path.extname(file.originalname)}`;
       const relativePath = `uploads/gallery/${id}/${storedFilename}`;
       const fullPath = path.join(__dirname, relativePath);
       await sharp(file.buffer).resize({ width: 1920, withoutEnlargement: true }).toFile(fullPath);
-      const info = db.prepare(`
-        INSERT INTO gallery_photos (album_id, original_filename, stored_filename, file_path, file_size, caption, date_taken)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(id, file.originalname, storedFilename, relativePath, file.size, caption, date_taken || new Date().toISOString().slice(0, 10));
+      
+      const info = await db.execute({
+        sql: `
+          INSERT INTO gallery_photos (album_id, original_filename, stored_filename, file_path, file_size, caption, date_taken)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [id, file.originalname, storedFilename, relativePath, file.size, caption, date_taken || new Date().toISOString().slice(0, 10)]
+      });
       const photoId = info.lastInsertRowid;
+      
       if (tags) {
-        tags.split(',').map(t => t.trim()).forEach(t => db.prepare('INSERT INTO gallery_photo_tags (photo_id, tag) VALUES (?, ?)').run(photoId, t));
+        const tagList = tags.split(',').map(t => t.trim());
+        for (const t of tagList) {
+          await db.execute({ sql: 'INSERT INTO gallery_photo_tags (photo_id, tag) VALUES (?, ?)', args: [photoId, t] });
+        }
       }
       results.push({ id: photoId, stored_filename: storedFilename, file_path: relativePath });
     }
@@ -735,32 +924,43 @@ app.post('/api/gallery/albums/:id/photos', galleryUpload.array('photos'), async 
   }
 });
 
-app.put('/api/gallery/photos/:id', (req, res) => {
+app.put('/api/gallery/photos/:id', async (req, res) => {
   const { id } = req.params;
   const { caption, date_taken, tags } = req.body;
   try {
-    const transaction = db.transaction(() => {
-      db.prepare('UPDATE gallery_photos SET caption = COALESCE(?, caption), date_taken = COALESCE(?, date_taken) WHERE id = ?').run(caption, date_taken, id);
+    const tx = await db.transaction('write');
+    try {
+      await tx.execute({
+        sql: 'UPDATE gallery_photos SET caption = COALESCE(?, caption), date_taken = COALESCE(?, date_taken) WHERE id = ?',
+        args: [caption, date_taken, id]
+      });
       if (tags !== undefined) {
-        db.prepare('DELETE FROM gallery_photo_tags WHERE photo_id = ?').run(id);
-        (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())).forEach(t => db.prepare('INSERT INTO gallery_photo_tags (photo_id, tag) VALUES (?, ?)').run(id, t));
+        await tx.execute({ sql: 'DELETE FROM gallery_photo_tags WHERE photo_id = ?', args: [id] });
+        const tagList = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+        for (const t of tagList) {
+          await tx.execute({ sql: 'INSERT INTO gallery_photo_tags (photo_id, tag) VALUES (?, ?)', args: [id, t] });
+        }
       }
-    });
-    transaction();
-    res.json({ message: 'Photo updated' });
+      await tx.commit();
+      res.json({ message: 'Photo updated' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/gallery/photos/:id', (req, res) => {
+app.delete('/api/gallery/photos/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const photo = db.prepare('SELECT file_path FROM gallery_photos WHERE id = ?').get(id);
+    const photoResult = await db.execute({ sql: 'SELECT file_path FROM gallery_photos WHERE id = ?', args: [id] });
+    const photo = photoResult.rows[0];
     if (photo) {
       const fullPath = path.join(__dirname, photo.file_path);
       if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-      db.prepare('DELETE FROM gallery_photos WHERE id = ?').run(id);
+      await db.execute({ sql: 'DELETE FROM gallery_photos WHERE id = ?', args: [id] });
     }
     res.json({ message: 'Photo deleted' });
   } catch (err) {
@@ -768,31 +968,45 @@ app.delete('/api/gallery/photos/:id', (req, res) => {
   }
 });
 
-app.delete('/api/gallery/photos/bulk', (req, res) => {
+app.delete('/api/gallery/photos/bulk', async (req, res) => {
   const { photo_ids } = req.body;
   try {
-    const transaction = db.transaction(() => {
-      photo_ids.forEach(id => {
-        const photo = db.prepare('SELECT file_path FROM gallery_photos WHERE id = ?').get(id);
+    const tx = await db.transaction('write');
+    try {
+      for (const id of photo_ids) {
+        const photoResult = await tx.execute({ sql: 'SELECT file_path FROM gallery_photos WHERE id = ?', args: [id] });
+        const photo = photoResult.rows[0];
         if (photo) {
           const fullPath = path.join(__dirname, photo.file_path);
           if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-          db.prepare('DELETE FROM gallery_photos WHERE id = ?').run(id);
+          await tx.execute({ sql: 'DELETE FROM gallery_photos WHERE id = ?', args: [id] });
         }
-      });
-    });
-    transaction();
-    res.json({ message: 'Photos deleted' });
+      }
+      await tx.commit();
+      res.json({ message: 'Photos deleted' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/gallery/photos/move', (req, res) => {
+app.put('/api/gallery/photos/move', async (req, res) => {
   const { photo_ids, target_album_id } = req.body;
   try {
-    db.transaction(() => photo_ids.forEach(id => db.prepare('UPDATE gallery_photos SET album_id = ? WHERE id = ?').run(target_album_id, id)))();
-    res.json({ message: 'Photos moved' });
+    const tx = await db.transaction('write');
+    try {
+      for (const id of photo_ids) {
+        await tx.execute({ sql: 'UPDATE gallery_photos SET album_id = ? WHERE id = ?', args: [target_album_id, id] });
+      }
+      await tx.commit();
+      res.json({ message: 'Photos moved' });
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

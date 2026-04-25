@@ -1,199 +1,238 @@
-const Database = require('better-sqlite3');
+const { createClient } = require('@libsql/client');
 const path = require('path');
+require('dotenv').config();
 
-const dbPath = path.join(__dirname, 'database.sqlite');
-const db = new Database(dbPath);
+const isProduction = process.env.TURSO_DATABASE_URL ? true : false;
+const url = process.env.TURSO_DATABASE_URL || `file:${path.join(__dirname, 'database.sqlite')}`;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+const db = createClient({
+  url: url,
+  authToken: authToken,
+});
 
 // Initialize schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS customers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    place TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+async function initDB() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      place TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    name_kn TEXT,
-    parent_id INTEGER,
-    FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      name_kn TEXT,
+      parent_id INTEGER,
+      FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS inventory_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    category_id INTEGER,
-    takeaway_price REAL,
-    delivery_price REAL,
-    available_quantity INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      category_id INTEGER,
+      takeaway_price REAL,
+      delivery_price REAL,
+      available_quantity INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    booking_id TEXT UNIQUE NOT NULL,
-    customer_id TEXT NOT NULL,
-    booking_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    delivery_takeaway_date DATETIME,
-    pricing_mode TEXT CHECK(pricing_mode IN ('delivery', 'takeaway')),
-    delivery_charge REAL DEFAULT 0,
-    place TEXT,
-    function_type TEXT,
-    total_amount REAL DEFAULT 0,
-    advance_amount REAL DEFAULT 0,
-    discount_amount REAL DEFAULT 0,
-    pending_amount REAL DEFAULT 0,
-    order_status TEXT DEFAULT 'confirmed',
-    payment_status TEXT DEFAULT 'pending',
-    voice_note_path TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      booking_id TEXT UNIQUE NOT NULL,
+      customer_id TEXT NOT NULL,
+      booking_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      delivery_takeaway_date DATETIME,
+      pricing_mode TEXT CHECK(pricing_mode IN ('delivery', 'takeaway')),
+      delivery_charge REAL DEFAULT 0,
+      place TEXT,
+      function_type TEXT,
+      total_amount REAL DEFAULT 0,
+      advance_amount REAL DEFAULT 0,
+      discount_amount REAL DEFAULT 0,
+      pending_amount REAL DEFAULT 0,
+      order_status TEXT DEFAULT 'confirmed',
+      payment_status TEXT DEFAULT 'pending',
+      voice_note_path TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS booking_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    booking_id TEXT NOT NULL,
-    item_id TEXT NOT NULL,
-    item_name TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
-    unit_price REAL NOT NULL,
-    subtotal REAL NOT NULL,
-    return_status TEXT DEFAULT 'pending',
-    missing_quantity INTEGER DEFAULT 0,
-    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS booking_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      booking_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      unit_price REAL NOT NULL,
+      subtotal REAL NOT NULL,
+      return_status TEXT DEFAULT 'pending',
+      missing_quantity INTEGER DEFAULT 0,
+      FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    booking_id TEXT NOT NULL,
-    amount REAL NOT NULL,
-    method TEXT CHECK(method IN ('cash', 'upi')),
-    paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      booking_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      method TEXT CHECK(method IN ('cash', 'upi')),
+      paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS order_links (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT UNIQUE NOT NULL,
-    status TEXT DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS order_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS vendors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    phone TEXT,
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS vendors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS vendor_borrows (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vendor_id INTEGER,
-    booking_id TEXT,
-    item_id INTEGER,
-    item_name TEXT,
-    borrowed_quantity INTEGER,
-    return_quantity INTEGER DEFAULT 0,
-    amount_paid REAL DEFAULT 0,
-    return_status TEXT DEFAULT 'pending',
-    borrowed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
-    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE SET NULL
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS vendor_borrows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_id INTEGER,
+      booking_id TEXT,
+      item_id INTEGER,
+      item_name TEXT,
+      borrowed_quantity INTEGER,
+      return_quantity INTEGER DEFAULT 0,
+      amount_paid REAL DEFAULT 0,
+      return_status TEXT DEFAULT 'pending',
+      borrowed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
+      FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+      FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE SET NULL
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS vendor_payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vendor_id INTEGER,
-    vendor_borrow_id INTEGER,
-    item_name TEXT,
-    quantity_returned INTEGER,
-    amount_paid REAL,
-    paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
-    FOREIGN KEY (vendor_borrow_id) REFERENCES vendor_borrows(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS vendor_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_id INTEGER,
+      vendor_borrow_id INTEGER,
+      item_name TEXT,
+      quantity_returned INTEGER,
+      amount_paid REAL,
+      paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
+      FOREIGN KEY (vendor_borrow_id) REFERENCES vendor_borrows(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS function_types (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS function_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS gallery_albums (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    album_type TEXT CHECK(album_type IN ('booking', 'inventory', 'general')),
-    booking_id TEXT,
-    inventory_item_id INTEGER,
-    cover_photo_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
-    FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS gallery_albums (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      album_type TEXT CHECK(album_type IN ('booking', 'inventory', 'general')),
+      booking_id TEXT,
+      inventory_item_id INTEGER,
+      cover_photo_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+      FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS gallery_photos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    album_id INTEGER NOT NULL,
-    original_filename TEXT,
-    stored_filename TEXT UNIQUE,
-    file_path TEXT,
-    file_size INTEGER,
-    caption TEXT,
-    date_taken DATE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES gallery_albums(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS gallery_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      album_id INTEGER NOT NULL,
+      original_filename TEXT,
+      stored_filename TEXT UNIQUE,
+      file_path TEXT,
+      file_size INTEGER,
+      caption TEXT,
+      date_taken DATE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (album_id) REFERENCES gallery_albums(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS gallery_photo_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    photo_id INTEGER NOT NULL,
-    tag TEXT,
-    FOREIGN KEY (photo_id) REFERENCES gallery_photos(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS gallery_photo_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      photo_id INTEGER NOT NULL,
+      tag TEXT,
+      FOREIGN KEY (photo_id) REFERENCES gallery_photos(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS business_profile (
-    id INTEGER PRIMARY KEY DEFAULT 1,
-    name_kn TEXT NOT NULL,
-    blessing_kn TEXT,
-    phone1 TEXT NOT NULL,
-    phone2 TEXT,
-    phone3 TEXT,
-    address1_kn TEXT NOT NULL,
-    address2_kn TEXT,
-    address3_kn TEXT,
-    deity_image_path TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT single_profile CHECK (id = 1)
-  );
-`);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS business_profile (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      name_kn TEXT NOT NULL,
+      blessing_kn TEXT,
+      phone1 TEXT NOT NULL,
+      phone2 TEXT,
+      phone3 TEXT,
+      address1_kn TEXT NOT NULL,
+      address2_kn TEXT,
+      address3_kn TEXT,
+      deity_image_path TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT single_profile CHECK (id = 1)
+    );
+  `);
 
-// Migrations for new columns
-try { db.exec('ALTER TABLE business_profile ADD COLUMN upi_id TEXT'); } catch(e) {}
-try { db.exec('ALTER TABLE business_profile ADD COLUMN upi_name TEXT'); } catch(e) {}
-try { db.exec('ALTER TABLE business_profile ADD COLUMN static_qr_path TEXT'); } catch(e) {}
+  // Migrations
+  try { await db.execute('ALTER TABLE business_profile ADD COLUMN upi_id TEXT'); } catch(e) {}
+  try { await db.execute('ALTER TABLE business_profile ADD COLUMN upi_name TEXT'); } catch(e) {}
+  try { await db.execute('ALTER TABLE business_profile ADD COLUMN static_qr_path TEXT'); } catch(e) {}
 
-// Seed default function types if empty
-const functionsCount = db.prepare('SELECT COUNT(*) as count FROM function_types').get();
-if (functionsCount.count === 0) {
-  const insert = db.prepare('INSERT INTO function_types (name) VALUES (?)');
-  ['Marriage', 'Opening', 'Birthday', 'Housewarming'].forEach(f => insert.run(f));
+  // Seed default function types
+  const functionsCount = await db.execute('SELECT COUNT(*) as count FROM function_types');
+  if (functionsCount.rows[0].count === 0) {
+    for (const f of ['Marriage', 'Opening', 'Birthday', 'Housewarming']) {
+      await db.execute({ sql: 'INSERT INTO function_types (name) VALUES (?)', args: [f] });
+    }
+  }
 }
 
+// Call initDB but don't block the module export
+initDB().catch(console.error);
+
 module.exports = db;
+
