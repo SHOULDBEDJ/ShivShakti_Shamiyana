@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Shamiyana Studio — Design System
+   Editorial · warm · confident · ink + saffron + ivory
+   All colors HSL.
+   ============================================================ */
+
+@layer base {
+  :root {
+    --background: 38 40% 97%;
+    --foreground: 25 30% 12%;
+
+    --card: 38 50% 99%;
+    --card-foreground: 25 30% 12%;
+
+    --popover: 38 50% 99%;
+    --popover-foreground: 25 30% 12%;
+
+    /* Deep ink primary */
+    --primary: 25 35% 14%;
+    --primary-foreground: 38 50% 97%;
+
+    /* Saffron / marigold accent */
+    --accent: 28 92% 54%;
+    --accent-foreground: 25 35% 14%;
+
+    --secondary: 35 30% 92%;
+    --secondary-foreground: 25 30% 18%;
+
+    --muted: 35 25% 93%;
+    --muted-foreground: 25 12% 42%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 38 50% 98%;
+
+    --success: 152 55% 36%;
+    --success-foreground: 38 50% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 25 35% 14%;
+
+    --info: 210 80% 45%;
+    --info-foreground: 38 50% 98%;
+
+    --border: 30 20% 86%;
+    --input: 30 20% 86%;
+    --ring: 28 92% 54%;
+
+    --radius: 0.625rem;
+
+    /* Surfaces */
+    --surface: 38 45% 98%;
+    --surface-strong: 38 35% 94%;
+    --ink: 25 35% 14%;
+    --ink-soft: 25 18% 28%;
+
+    /* Gradients & shadows */
+    --gradient-hero: linear-gradient(135deg, hsl(25 35% 14%) 0%, hsl(20 40% 22%) 60%, hsl(28 92% 54%) 140%);
+    --gradient-marigold: linear-gradient(135deg, hsl(38 92% 56%), hsl(20 88% 50%));
+    --gradient-soft: linear-gradient(180deg, hsl(38 45% 98%), hsl(35 30% 92%));
+    --shadow-elegant: 0 12px 32px -16px hsl(25 35% 14% / 0.25);
+    --shadow-card: 0 1px 2px hsl(25 30% 12% / 0.04), 0 8px 24px -12px hsl(25 30% 12% / 0.08);
+    --shadow-glow: 0 0 0 1px hsl(28 92% 54% / 0.25), 0 8px 30px -8px hsl(28 92% 54% / 0.35);
+
+    --transition-base: all 220ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    --sidebar-background: 25 35% 14%;
+    --sidebar-foreground: 38 30% 88%;
+    --sidebar-primary: 28 92% 54%;
+    --sidebar-primary-foreground: 25 35% 14%;
+    --sidebar-accent: 25 25% 22%;
+    --sidebar-accent-foreground: 38 50% 97%;
+    --sidebar-border: 25 20% 22%;
+    --sidebar-ring: 28 92% 54%;
+  }
+
+  .dark {
+    --background: 25 25% 8%;
+    --foreground: 38 30% 92%;
+    --card: 25 25% 11%;
+    --card-foreground: 38 30% 92%;
+    --popover: 25 25% 11%;
+    --popover-foreground: 38 30% 92%;
+    --primary: 28 92% 56%;
+    --primary-foreground: 25 35% 12%;
+    --secondary: 25 18% 18%;
+    --secondary-foreground: 38 30% 92%;
+    --muted: 25 15% 18%;
+    --muted-foreground: 35 12% 65%;
+    --accent: 28 92% 56%;
+    --accent-foreground: 25 35% 12%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 38 30% 95%;
+    --border: 25 15% 22%;
+    --input: 25 15% 22%;
+    --ring: 28 92% 56%;
+    --surface: 25 25% 10%;
+    --surface-strong: 25 22% 14%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body, #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .stat-card {
+    @apply rounded-xl border bg-card p-5 shadow-[var(--shadow-card)] transition-[var(--transition-base)] hover:shadow-[var(--shadow-elegant)];
+  }
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(10px);
+  }
+  .ink-divider {
+    background: linear-gradient(90deg, transparent, hsl(var(--border)), transparent);
+    height: 1px;
+  }
+}
