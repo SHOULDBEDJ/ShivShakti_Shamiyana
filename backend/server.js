@@ -12,26 +12,36 @@ const db = require('./database');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Ensure upload directories exist
-const uploadDir = path.join(__dirname, 'uploads');
+// Ensure upload directories exist (with safety for read-only environments like Vercel)
+const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
+const uploadDir = isVercel ? '/tmp/uploads' : path.join(__dirname, 'uploads');
 const voiceNotesDir = path.join(uploadDir, 'voice_notes');
 const galleryDir = path.join(uploadDir, 'gallery');
 const settingsDir = path.join(uploadDir, 'settings');
 
 [uploadDir, voiceNotesDir, galleryDir, settingsDir].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (err) {
+    console.warn(`Could not create directory ${dir}: ${err.message}`);
+  }
 });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Static files (with fallback for Vercel)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+if (isVercel) {
+  app.use('/uploads', express.static('/tmp/uploads'));
+}
 
 // Multer setup for voice notes
 const voiceStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/voice_notes/');
+    cb(null, voiceNotesDir);
   },
   filename: (req, file, cb) => {
     cb(null, `voice_${Date.now()}.webm`);
@@ -42,7 +52,7 @@ const voiceUpload = multer({ storage: voiceStorage });
 // Multer setup for settings images
 const settingsStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/settings/');
+    cb(null, settingsDir);
   },
   filename: (req, file, cb) => {
     cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
