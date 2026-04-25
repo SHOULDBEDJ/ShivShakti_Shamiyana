@@ -1,0 +1,8 @@
+{
+  "name": "booking-app-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run build --prefix Dheeraj",
+    "install-all": "npm install --prefix Dheeraj && npm install --prefix backend"
+  }
+}
