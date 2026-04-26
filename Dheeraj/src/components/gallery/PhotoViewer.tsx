@@ -7,7 +7,8 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const FILE_BASE_URL = ''; // Files are served from root /uploads
+
 
 interface PhotoViewerProps {
   photos: any[];
@@ -72,8 +73,9 @@ export const PhotoViewer = ({ photos, initialIndex, onClose, onDelete }: PhotoVi
   };
 
   const handleDownload = async () => {
-    window.open(`${API_BASE_URL}/api/gallery/photos/${photo.id}/download`, '_blank');
+    window.open(`/api/gallery/photos/${photo.id}/download`, '_blank');
   };
+
 
   // Keyboard navigation
   useEffect(() => {
@@ -120,10 +122,15 @@ export const PhotoViewer = ({ photos, initialIndex, onClose, onDelete }: PhotoVi
         
         <div className="relative max-w-full max-h-full group">
           <img 
-            src={`${API_BASE_URL}/${photo.file_path}`} 
+            src={`${FILE_BASE_URL}/${photo.file_path}`} 
             alt={photo.caption || "Gallery"} 
             className="max-w-full max-h-[80vh] object-contain shadow-2xl rounded"
           />
+          
+          {/* Mobile Tap Areas for Navigation */}
+          <div className="absolute inset-y-0 left-0 w-1/4 sm:hidden" onClick={(e) => { e.stopPropagation(); handlePrev(); }} />
+          <div className="absolute inset-y-0 right-0 w-1/4 sm:hidden" onClick={(e) => { e.stopPropagation(); handleNext(); }} />
+
         </div>
 
         <Button 
@@ -171,11 +178,14 @@ export const PhotoViewer = ({ photos, initialIndex, onClose, onDelete }: PhotoVi
         )}
       </div>
 
-      {/* Mobile Swipe Simulation Info */}
-      <div className="sm:hidden fixed bottom-4 left-1/2 -translate-x-1/2 flex gap-4">
-         <Button variant="ghost" size="icon" className="text-white h-12 w-12 bg-black/40 rounded-full" onClick={handlePrev}><ChevronLeft /></Button>
-         <Button variant="ghost" size="icon" className="text-white h-12 w-12 bg-black/40 rounded-full" onClick={handleNext}><ChevronRight /></Button>
+      {/* Mobile Navigation Arrows Overlay */}
+      <div className="sm:hidden absolute inset-y-0 left-0 flex items-center px-2 pointer-events-none">
+         <Button variant="ghost" size="icon" className="text-white h-10 w-10 bg-black/20 rounded-full pointer-events-auto" onClick={handlePrev}><ChevronLeft className="h-6 w-6" /></Button>
       </div>
+      <div className="sm:hidden absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+         <Button variant="ghost" size="icon" className="text-white h-10 w-10 bg-black/20 rounded-full pointer-events-auto" onClick={handleNext}><ChevronRight className="h-6 w-6" /></Button>
+      </div>
+
     </div>
   );
 };

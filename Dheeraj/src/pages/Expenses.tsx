@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Wallet, Calendar, Receipt } from "lucide-react";
+import { Plus, Trash2, Wallet, Calendar, Receipt, Pencil, Check, X } from "lucide-react";
+
 import { fmtINR, fmtDate, monthStartISO, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -23,11 +24,16 @@ const Expenses = () => {
   const [open, setOpen] = useState(false);
 
   const load = async () => {
-    const [{ data }, { data: tps }] = await Promise.all([
-      supabase.from("expenses").select("*").order("date", { ascending: false }),
-      supabase.from("expense_types" as any).select("*").order("name"),
-    ]);
-    setList(data || []); setTypes(tps || []);
+    try {
+      const [expenses, tps] = await Promise.all([
+        api.getExpenses(),
+        api.getExpenseTypes(),
+      ]);
+      setList(expenses || []); 
+      setTypes(tps || []);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -41,8 +47,13 @@ const Expenses = () => {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this expense?")) return;
-    await supabase.from("expenses").delete().eq("id", id);
-    load();
+    try {
+      await api.deleteExpense(id);
+      toast.success("Expense deleted");
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (
@@ -51,11 +62,18 @@ const Expenses = () => {
         title={t("expenses")}
         subtitle={t("expensesSubtitle")}
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90"><Plus className="mr-2 h-4 w-4" /> {t("newExpense")}</Button></DialogTrigger>
-            <ExpenseDialog types={types} onClose={() => { setOpen(false); load(); }} />
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog>
+              <DialogTrigger asChild><Button variant="outline">{t("type")}</Button></DialogTrigger>
+              <ExpenseTypesDialog onClose={load} />
+            </Dialog>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90"><Plus className="mr-2 h-4 w-4" /> {t("newExpense")}</Button></DialogTrigger>
+              <ExpenseDialog types={types} onClose={() => { setOpen(false); load(); }} />
+            </Dialog>
+          </div>
         }
+
       />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
@@ -112,8 +130,13 @@ const ExpenseDialog = ({ types, onClose }: any) => {
   const save = async () => {
     if (!amount || amount <= 0) return toast.error("Amount required");
     if (!category) return toast.error("Select an expense type (add one in Settings → Expense Types)");
-    const { error } = await supabase.from("expenses").insert({ date, amount, category, description, payment_method: method });
-    if (error) toast.error(error.message); else { toast.success("Expense added"); onClose(); }
+    try {
+      await api.createExpense({ date, amount, category, description, payment_method: method });
+      toast.success("Expense added"); 
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
   return (
     <DialogContent>
@@ -153,4 +176,92 @@ const ExpenseDialog = ({ types, onClose }: any) => {
   );
 };
 
+const ExpenseTypesDialog = ({ onClose }: any) => {
+  const { t } = useI18n();
+  const [list, setList] = useState<any[]>([]);
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const load = async () => {
+    try {
+      const data = await api.getExpenseTypes();
+      setList(data || []);
+    } catch (err) {
+      toast.error("Failed to load types");
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!newName.trim()) return toast.error("Enter a name");
+    try {
+      await api.createExpenseType(newName.trim());
+      setNewName("");
+      load();
+      onClose(); // Refresh parent
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    if (!editValue.trim()) return;
+    try {
+      await api.updateExpenseType(id, editValue.trim());
+      setEditingId(null);
+      load();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const remove = async (id: number) => {
+    if (!confirm("Delete this expense type?")) return;
+    try {
+      await api.deleteExpenseType(id);
+      load();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  return (
+    <DialogContent>
+      <DialogHeader><DialogTitle>{t("functionTypes")}</DialogTitle></DialogHeader>
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <Input placeholder="New Type Name" value={newName} onChange={e => setNewName(e.target.value)} />
+          <Button onClick={handleAdd}>{t("save")}</Button>
+        </div>
+        <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
+          {list.map(tp => (
+            <div key={tp.id} className="p-2 flex items-center justify-between">
+              {editingId === tp.id ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <Input value={editValue} onChange={e => setEditValue(e.target.value)} className="h-8" />
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-success" onClick={() => handleSaveEdit(tp.id)}><Check className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setEditingId(null)}><X className="h-4 w-4" /></Button>
+                </div>
+              ) : (
+                <>
+                  <span className="text-sm">{tp.name}</span>
+                  <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingId(tp.id); setEditValue(tp.name); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(tp.id)}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </DialogContent>
+  );
+};
+
 export default Expenses;
+

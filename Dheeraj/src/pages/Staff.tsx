@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -19,15 +19,24 @@ const Staff = () => {
   const [edit, setEdit] = useState<any | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from("workers").select("*").order("name");
-    setList(data || []);
+    try {
+      const data = await api.getWorkers();
+      setList(data || []);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
   useEffect(() => { load(); }, []);
 
   const remove = async (id: string) => {
     if (!confirm("Delete this staff member?")) return;
-    await supabase.from("workers").delete().eq("id", id);
-    load();
+    try {
+      await api.deleteWorker(id);
+      toast.success("Staff deleted");
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (
@@ -67,7 +76,6 @@ const Staff = () => {
     </>
   );
 };
-export default Staff;
 
 const StaffDialog = ({ staff, onClose }: any) => {
   const { t } = useI18n();
@@ -77,10 +85,17 @@ const StaffDialog = ({ staff, onClose }: any) => {
   const save = async () => {
     if (!name || !phone) return toast.error("Name and phone required");
     const payload = { name, phone, role };
-    const { error } = staff
-      ? await supabase.from("workers").update(payload).eq("id", staff.id)
-      : await supabase.from("workers").insert(payload);
-    if (error) toast.error(error.message); else { toast.success(staff ? "Updated" : "Added"); onClose(); }
+    try {
+      if (staff) {
+        await api.updateWorker(staff.id, payload);
+      } else {
+        await api.createWorker(payload);
+      }
+      toast.success(staff ? "Updated" : "Added"); 
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
   return (
     <DialogContent>
@@ -103,3 +118,5 @@ const StaffDialog = ({ staff, onClose }: any) => {
     </DialogContent>
   );
 };
+
+export default Staff;

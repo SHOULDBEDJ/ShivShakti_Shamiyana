@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect } from "react";
@@ -21,7 +21,6 @@ export const AddPaymentModal = ({ booking, isOpen, onClose, onSuccess }: AddPaym
   const [method, setMethod] = useState<'cash' | 'upi'>('cash');
   const [loading, setLoading] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
-  const [upiType, setUpiType] = useState<'smart' | 'static'>('smart');
 
   useEffect(() => {
     if (isOpen) {
@@ -57,8 +56,17 @@ export const AddPaymentModal = ({ booking, isOpen, onClose, onSuccess }: AddPaym
           </div>
           <div className="space-y-2">
             <Label>Pending Amount</Label>
-            <div className="text-destructive font-bold">₹{booking?.pending_amount}</div>
+            <div className="text-destructive font-bold flex items-center gap-2">
+              <span>₹{booking?.pending_amount}</span>
+              {amount > 0 && (
+                <>
+                  <span className="text-muted-foreground font-normal">→</span>
+                  <span className="text-success">₹{Math.max(0, booking?.pending_amount - amount)}</span>
+                </>
+              )}
+            </div>
           </div>
+
           <div className="space-y-2">
             <Label>Amount to Pay (₹)</Label>
             <Input 
@@ -84,33 +92,16 @@ export const AddPaymentModal = ({ booking, isOpen, onClose, onSuccess }: AddPaym
             </div>
           </div>
           {method === 'upi' && amount > 0 && (
-            <div className="p-4 border rounded-lg space-y-4 bg-muted/10">
-              <div className="flex gap-2">
-                <Button size="sm" variant={upiType === 'smart' ? 'default' : 'outline'} onClick={() => setUpiType('smart')}>Smart QR</Button>
-                <Button size="sm" variant={upiType === 'static' ? 'default' : 'outline'} onClick={() => setUpiType('static')}>Static QR</Button>
-              </div>
+            <div className="p-4 border rounded-lg space-y-4 bg-muted/10 animate-in fade-in duration-300">
               <div className="flex justify-center">
-                {upiType === 'smart' ? (
-                  businessProfile?.upi_id ? (
-                    <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
-                      <QRCodeSVG 
-                        value={`upi://pay?pa=${businessProfile.upi_id}&pn=${encodeURIComponent(businessProfile.upi_name || 'Business')}&am=${amount}&cu=INR`} 
-                        size={150} 
-                      />
-                      <div className="text-sm font-bold text-black mt-2">Scan to pay {fmtINR(amount)}</div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-4">UPI ID not configured in settings.</div>
-                  )
-                ) : (
-                  businessProfile?.static_qr_path ? (
-                    <div className="p-4 bg-white rounded-xl shadow-sm">
-                      <img src={`http://localhost:5000/${businessProfile.static_qr_path}`} alt="Static QR" className="w-[150px] h-[150px] object-cover" />
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-4">Static QR not uploaded in settings.</div>
-                  )
-                )}
+                <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
+                  <QRCodeSVG 
+                    value={`upi://pay?pa=9113565802.wa.8p7@waaxis&pn=${encodeURIComponent(businessProfile?.upi_name || 'Business')}&am=${amount}&cu=INR`} 
+                    size={150} 
+                  />
+                  <div className="text-sm font-bold text-black mt-2">Scan to pay {fmtINR(amount)}</div>
+                  <div className="text-[10px] text-muted-foreground">UPI ID: 9113565802.wa.8p7@waaxis</div>
+                </div>
               </div>
             </div>
           )}

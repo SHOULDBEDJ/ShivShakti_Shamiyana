@@ -14,6 +14,31 @@ const db = createClient({
 // Initialize schema
 async function initDB() {
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS business_profile (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      business_name TEXT,
+      name_kn TEXT,
+      owner_name TEXT,
+      blessing_kn TEXT,
+      phone TEXT,
+      phone1 TEXT,
+      phone2 TEXT,
+      phone3 TEXT,
+      address TEXT,
+      address1_kn TEXT,
+      address2_kn TEXT,
+      address3_kn TEXT,
+      photo_url TEXT,
+      deity_image_path TEXT,
+      upi_id TEXT,
+      upi_name TEXT,
+      static_qr_path TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT single_profile CHECK (id = 1)
+    )
+  `);
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id TEXT UNIQUE NOT NULL,
@@ -200,20 +225,39 @@ async function initDB() {
     );
   `);
 
+
   await db.execute(`
-    CREATE TABLE IF NOT EXISTS business_profile (
-      id INTEGER PRIMARY KEY DEFAULT 1,
-      name_kn TEXT NOT NULL,
-      blessing_kn TEXT,
-      phone1 TEXT NOT NULL,
-      phone2 TEXT,
-      phone3 TEXT,
-      address1_kn TEXT NOT NULL,
-      address2_kn TEXT,
-      address3_kn TEXT,
-      deity_image_path TEXT,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT single_profile CHECK (id = 1)
+    CREATE TABLE IF NOT EXISTS workers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      role TEXT,
+      phone TEXT,
+      salary REAL,
+      address TEXT,
+      join_date DATE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS expense_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date DATE NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT,
+      description TEXT,
+      payment_method TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 

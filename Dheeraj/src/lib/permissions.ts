@@ -6,6 +6,8 @@ export type ModuleKey =
   | "expenses"
   | "staff"
   | "vendors"
+
+
   | "reports"
   | "orderLink"
   | "gallery"
@@ -20,6 +22,8 @@ export const ALL_MODULES: { key: ModuleKey; label: string }[] = [
   { key: "expenses", label: "Expenses" },
   { key: "staff", label: "Staff" },
   { key: "vendors", label: "Vendors" },
+
+
   { key: "reports", label: "Reports" },
   { key: "orderLink", label: "Order Link" },
   { key: "gallery", label: "Gallery" },

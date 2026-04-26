@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 const fmtINR = (n: number) =>
   "Rs. " + (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -30,8 +30,12 @@ const toDataUrl = async (url: string): Promise<{ data: string; format: "PNG" | "
 };
 
 export async function generateInvoicePDF(booking: any) {
-  const { data: profile } = await supabase.from("business_profile").select("*").maybeSingle();
-  const biz: any = profile || {};
+  let biz: any = {};
+  try {
+    biz = await api.getProfile();
+  } catch (err) {
+    console.error("Failed to load business profile", err);
+  }
 
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -73,17 +77,26 @@ export async function generateInvoicePDF(booking: any) {
   doc.setTextColor(20, 20, 20);
   let y = 120;
 
+  // Map field names from Turso schema
+  const bookingId = booking.booking_id;
+  const status = booking.order_status || booking.status;
+  const startDate = booking.delivery_takeaway_date || booking.start_date;
+  const endDate = booking.return_date || booking.end_date;
+  const total = booking.total_amount || booking.pricing?.totalAmount || 0;
+  const paid = Number(booking.advance_amount || booking.total_paid || 0);
+  const balanceDue = Number(booking.pending_amount ?? booking.remaining_amount ?? Math.max(0, total - paid));
+
   // Booking meta
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("Booking ID:", 40, y);
   doc.setFont("helvetica", "normal");
-  doc.text(booking.booking_id || "—", 120, y);
+  doc.text(bookingId || "—", 120, y);
 
   doc.setFont("helvetica", "bold");
   doc.text("Status:", pageW - 200, y);
   doc.setFont("helvetica", "normal");
-  doc.text(booking.status || "—", pageW - 150, y);
+  doc.text(status || "—", pageW - 150, y);
   y += 18;
 
   doc.setFont("helvetica", "bold");
@@ -102,13 +115,13 @@ export async function generateInvoicePDF(booking: any) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.text(booking.customer_name || "—", 50, y + 34);
-  doc.text("Phone: " + (booking.phone || "—"), 50, y + 50);
-  doc.text("Address: " + ((booking.address || "—") as string).slice(0, 80), 50, y + 64);
+  doc.text("Phone: " + (booking.phone_number || booking.phone || "—"), 50, y + 50);
+  doc.text("Address: " + ((booking.customer_address || booking.address || "—") as string).slice(0, 80), 50, y + 64);
 
   doc.setFont("helvetica", "bold");
   doc.text("Event Dates", pageW - 220, y + 16);
   doc.setFont("helvetica", "normal");
-  doc.text(fmtDate(booking.start_date) + "  to  " + fmtDate(booking.end_date), pageW - 220, y + 34);
+  doc.text(fmtDate(startDate) + "  to  " + fmtDate(endDate), pageW - 220, y + 34);
   if (booking.event_time) doc.text("Time: " + booking.event_time, pageW - 220, y + 50);
   y += 90;
 
@@ -119,10 +132,10 @@ export async function generateInvoicePDF(booking: any) {
     head: [["#", "Item", "Qty", "Unit price", "Amount"]],
     body: items.map((it, i) => [
       String(i + 1),
-      it.name || "—",
+      it.item_name || it.name || "—",
       String(it.quantity || 0),
-      fmtINR(Number(it.price || 0)),
-      fmtINR(Number(it.price || 0) * Number(it.quantity || 0)),
+      fmtINR(Number(it.unit_price || it.price || 0)),
+      fmtINR(Number(it.subtotal || (Number(it.unit_price || it.price || 0) * Number(it.quantity || 0)))),
     ]),
     headStyles: { fillColor: [180, 60, 40], textColor: 255 },
     styles: { fontSize: 10, cellPadding: 6 },
@@ -139,15 +152,6 @@ export async function generateInvoicePDF(booking: any) {
   y = (doc as any).lastAutoTable.finalY + 12;
 
   // Totals
-  const pricing = booking.pricing || {};
-  const subtotal = Number(pricing.subtotal || 0);
-  const tax = Number(pricing.tax || 0);
-  const discount = Number(pricing.discount || 0);
-  const deliveryCharge = Number(pricing.deliveryCharge || 0);
-  const total = Number(pricing.totalAmount || 0);
-  const paid = Number(booking.total_paid || 0);
-  const dueAmt = Number(booking.remaining_amount || 0);
-
   const labelX = pageW - 220;
   const valueX = pageW - 50;
   const row = (label: string, value: string, bold = false) => {
@@ -158,18 +162,9 @@ export async function generateInvoicePDF(booking: any) {
   };
 
   doc.setFontSize(10);
-  row("Subtotal", fmtINR(subtotal));
-  if (discount > 0) row("Discount", "- " + fmtINR(discount));
-  if (tax > 0) row("Tax", fmtINR(tax));
-  if ((booking.delivery_mode || "Delivery") === "Delivery" && deliveryCharge > 0)
-    row("Delivery charge", fmtINR(deliveryCharge));
-  doc.setDrawColor(180, 60, 40);
-  doc.line(labelX, y - 6, valueX, y - 6);
-  doc.setFontSize(12);
   row("TOTAL", fmtINR(total), true);
-  doc.setFontSize(10);
   row("Paid", fmtINR(paid));
-  row("Balance Due", fmtINR(dueAmt), true);
+  row("Balance Due", fmtINR(balanceDue), true);
 
   // Footer
   y = doc.internal.pageSize.getHeight() - 60;
@@ -180,5 +175,5 @@ export async function generateInvoicePDF(booking: any) {
   doc.text("Thank you for choosing " + (biz.business_name || "ShivaShakti Shamiyana") + ".", 40, y + 18);
   doc.text("Generated on " + new Date().toLocaleString("en-IN"), 40, y + 32);
 
-  doc.save(`Invoice-${booking.booking_id || "booking"}.pdf`);
+  doc.save(`Invoice-${bookingId || "booking"}.pdf`);
 }

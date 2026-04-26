@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toast } from "sonner";
 import { fmtINR } from "@/lib/format";
 import { useI18n } from "@/context/I18nContext";
+import { cn } from "@/lib/utils";
+
 
 interface BookingFormProps {
   initialData?: any;
@@ -36,17 +38,18 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
     payment_method: '' as 'cash' | 'upi' | '',
   });
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
   const [lastBookingInfo, setLastBookingInfo] = useState<any>(null);
+
 
   const [categories, setCategories] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
   const [functionTypes, setFunctionTypes] = useState<any[]>([]);
+
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
-  const [upiType, setUpiType] = useState<'smart' | 'static'>('smart');
+  const [vendors, setVendors] = useState<any[]>([]);
+
 
   // Voice Notes
   const [isRecording, setIsRecording] = useState(false);
@@ -54,6 +57,48 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+  const [isListening, setIsListening] = useState<string | null>(null);
+
+  const listenSpeech = (field: 'customer_name' | 'place') => {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) {
+      toast.error("Voice recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = 'kn-IN'; // Default to Kannada for this app
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(field);
+    recognition.onend = () => setIsListening(null);
+    recognition.onerror = (event: any) => {
+      setIsListening(null);
+      console.error("Speech recognition error", event.error);
+      if (event.error === 'not-allowed') {
+        toast.error("Microphone permission denied. Please allow mic access in your browser.");
+      } else if (event.error === 'no-speech') {
+        toast.error("No speech detected. Please try again.");
+      } else if (event.error === 'network') {
+        toast.error("Network error. Speech recognition requires an internet connection.");
+      } else {
+        toast.error(`Speech error: ${event.error}. Please try again.`);
+      }
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setFormData(prev => ({ ...prev, [field]: transcript }));
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      setIsListening(null);
+    }
+  };
+
 
   useEffect(() => {
     fetchBaseData();
@@ -71,37 +116,102 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
 
   const fetchBaseData = async () => {
     try {
-      const [cats, items, vends, types, profile] = await Promise.all([
+      const [cats, items, types, profile, vends] = await Promise.all([
         api.getCategories(),
         api.getItems(),
-        api.getVendors(),
         api.getFunctionTypes(),
-        api.getBusinessProfile()
+        api.getBusinessProfile(),
+        api.getVendors()
       ]);
       setCategories(cats || []);
       setInventoryItems(items || []);
-      setVendors(vends || []);
       setFunctionTypes(types || []); 
       setBusinessProfile(profile || null);
+      setVendors(vends || []);
     } catch (err) {
       console.error("Failed to fetch base data", err);
     }
   };
 
+
   const initNewBooking = async () => {
     const { booking_id } = await api.generateBookingID();
+    
+    // Check for local draft
+    const saved = localStorage.getItem("booking_draft");
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        // Only offer to resume if it's a new booking (no initialData)
+        if (!initialData) {
+          toast("You have an unsaved draft. Resume?", {
+            action: {
+              label: "Resume",
+              onClick: () => {
+                setFormData(draft.formData);
+                setSelectedItems(draft.selectedItems);
+                setAudioBlob(draft.audioBlob ? new Blob([draft.audioBlob], { type: 'audio/webm' }) : null);
+                toast.success("Draft resumed");
+              }
+            },
+            cancel: {
+              label: "Discard",
+              onClick: () => localStorage.removeItem("booking_draft")
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse draft", e);
+      }
+    }
+    
     setFormData(prev => ({ ...prev, booking_id }));
   };
 
-  const handleCustomerSearch = async (val: string) => {
-    setSearchQuery(val);
-    if (val.length > 2) {
-      const results = await api.searchCustomers(val);
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
+  useEffect(() => {
+    if (formData.phone_number.length === 10 && !initialData) {
+      handlePhoneSearch(formData.phone_number);
+    }
+  }, [formData.phone_number]);
+
+  const handlePhoneSearch = async (phone: string) => {
+    try {
+      const results = await api.searchCustomers(phone);
+      if (results && results.length > 0) {
+        const customer = results[0];
+        setFormData(prev => ({
+          ...prev,
+          customer_id: customer.customer_id,
+          customer_name: customer.name,
+          place: customer.place || prev.place,
+        }));
+        setLastBookingInfo(customer.last_booking);
+        toast.success("Existing customer found!");
+      } else {
+        const { customer_id } = await api.generateCustomerID();
+        setFormData(prev => ({
+          ...prev,
+          customer_id,
+          customer_name: '',
+          place: '',
+        }));
+        toast.info("New customer number detected");
+      }
+    } catch (err) {
+      console.error("Search failed", err);
     }
   };
+
+  // Auto-save effect
+  useEffect(() => {
+    if (!initialData && (formData.customer_name || selectedItems.length > 0)) {
+      const timeout = setTimeout(() => {
+        localStorage.setItem("booking_draft", JSON.stringify({ formData, selectedItems }));
+      }, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [formData, selectedItems, initialData]);
+
 
   const selectCustomer = async (customer: any) => {
     setFormData(prev => ({
@@ -112,8 +222,7 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
       place: customer.place || prev.place,
     }));
     setLastBookingInfo(customer.last_booking);
-    setSearchResults([]);
-    setSearchQuery("");
+    setSearchFeedback("Customer selected, take new order");
   };
 
   const generateNewCustomer = async () => {
@@ -180,6 +289,13 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
     }
   };
 
+  const updateItemVendor = (itemId: number, vendorId: number) => {
+    setSelectedItems(selectedItems.map(s => 
+      s.item_id === itemId ? { ...s, vendor_id: vendorId } : s
+    ));
+  };
+
+
   const handleManualPriceChange = (itemId: any, price: number) => {
     setSelectedItems(selectedItems.map(i => i.item_id === itemId ? { ...i, unit_price: price, subtotal: i.quantity * price } : i));
   };
@@ -221,7 +337,8 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
 
     try {
       await api.createBooking(data);
-      toast.success("Booking saved successfully");
+      localStorage.removeItem("booking_draft");
+      toast.success(status === 'draft' ? "Saved as draft" : "Booking saved successfully");
       onSave();
       onClose();
     } catch (err) {
@@ -229,6 +346,7 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
     } finally {
       setLoading(false);
     }
+
   };
 
   return (
@@ -238,70 +356,87 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
         <Button variant="ghost" onClick={onClose}><X /></Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>{t("bookingDate")}</Label>
-          <Input type="datetime-local" value={formData.booking_date} onChange={e => setFormData({...formData, booking_date: e.target.value})} />
-        </div>
-        <div className="space-y-2 text-right">
-           <div className="text-xs text-muted-foreground">{t("bookingId")}: <span className="font-mono text-primary font-bold">{formData.booking_id}</span></div>
-           <div className="text-xs text-muted-foreground">{t("customer")} ID: <span className="font-mono text-primary font-bold">{formData.customer_id || t("new")}</span></div>
-        </div>
-      </div>
-
-      <div className="relative space-y-2">
-        <Label>{t("customerSearch")}</Label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder={t("search")} value={searchQuery} onChange={e => handleCustomerSearch(e.target.value)} className="pl-9" />
-        </div>
-        {searchResults.length > 0 && (
-          <div className="absolute z-10 w-full bg-card border rounded-md shadow-lg max-h-60 overflow-y-auto">
-            {searchResults.map(c => (
-              <div key={c.customer_id} className="p-3 hover:bg-muted cursor-pointer flex justify-between" onClick={() => selectCustomer(c)}>
-                <div>
-                  <div className="font-bold">{c.name}</div>
-                  <div className="text-xs text-muted-foreground">{c.phone} | {c.place}</div>
-                </div>
-                <div className="text-xs font-mono">{c.customer_id}</div>
-              </div>
-            ))}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div className="space-y-2">
+            <Label className="text-lg font-bold">{t("phone")}</Label>
+            <Input 
+              type="number" 
+              inputMode="numeric" 
+              value={formData.phone_number} 
+              onChange={e => setFormData({...formData, phone_number: e.target.value})} 
+              className="text-xl h-12 font-bold"
+              placeholder="9876543210"
+            />
           </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>{t("pricingMode")}</Label>
-        <div className="flex gap-4">
-          <Button variant={formData.pricing_mode === 'delivery' ? 'default' : 'outline'} onClick={() => setFormData({...formData, pricing_mode: 'delivery'})} className="flex-1">{t("delivery")}</Button>
-          <Button variant={formData.pricing_mode === 'takeaway' ? 'default' : 'outline'} onClick={() => setFormData({...formData, pricing_mode: 'takeaway'})} className="flex-1">{t("takeaway")}</Button>
-        </div>
-        {formData.pricing_mode === 'delivery' && (
-          <div className="mt-2 space-y-1">
-            <Label>{t("deliveryCharge")} (₹)</Label>
-            <Input type="number" inputMode="numeric" value={formData.delivery_charge || ""} onChange={e => setFormData({...formData, delivery_charge: Number(e.target.value)})} />
+          <div className="space-y-2 text-right">
+             <div className="text-xs text-muted-foreground">{t("bookingId")}: <span className="font-mono text-primary font-bold">{formData.booking_id}</span></div>
+             <div className="text-xs text-muted-foreground">{t("customer")} ID: <span className="font-mono text-primary font-bold">{formData.customer_id || t("new")}</span></div>
           </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="space-y-1 md:col-span-1"><Label>{t("customerName")}</Label><Input value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} /></div>
-        <div className="space-y-1 md:col-span-1"><Label>{t("phone")}</Label><Input type="number" inputMode="numeric" value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} /></div>
-        <div className="space-y-1 md:col-span-1"><Label>{t("place")}</Label><Input value={formData.place} onChange={e => setFormData({...formData, place: e.target.value})} /></div>
-        <div className="space-y-1 md:col-span-1">
-          <Label>{t("functionType")}</Label>
-          <Select value={formData.function_type} onValueChange={(v) => setFormData({...formData, function_type: v})}>
-            <SelectTrigger><SelectValue placeholder={t("all")} /></SelectTrigger>
-            <SelectContent>
-              {functionTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label>{formData.pricing_mode === 'delivery' ? t("deliveryDate") : t("takeawayDate")}</Label>
-        <Input type="datetime-local" value={formData.delivery_takeaway_date} onChange={e => setFormData({...formData, delivery_takeaway_date: e.target.value})} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label>{t("customerName")}</Label>
+            <div className="relative">
+              <Input value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} className="pr-10" />
+              <Button 
+                type="button"
+                variant="ghost" 
+                size="icon" 
+                className={cn("absolute right-0 top-0 h-full hover:bg-transparent", isListening === 'customer_name' && "text-destructive animate-pulse")}
+                onClick={() => listenSpeech('customer_name')}
+              >
+                <Mic className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>{t("place")}</Label>
+            <div className="relative">
+              <Input value={formData.place} onChange={e => setFormData({...formData, place: e.target.value})} className="pr-10" />
+              <Button 
+                type="button"
+                variant="ghost" 
+                size="icon" 
+                className={cn("absolute right-0 top-0 h-full hover:bg-transparent", isListening === 'place' && "text-destructive animate-pulse")}
+                onClick={() => listenSpeech('place')}
+              >
+                <Mic className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label>{t("functionType")}</Label>
+            <Select value={formData.function_type} onValueChange={(v) => setFormData({...formData, function_type: v})}>
+              <SelectTrigger><SelectValue placeholder={t("all")} /></SelectTrigger>
+              <SelectContent>
+                {functionTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>{formData.pricing_mode === 'delivery' ? t("deliveryDate") : t("takeawayDate")}</Label>
+            <Input type="datetime-local" value={formData.delivery_takeaway_date} onChange={e => setFormData({...formData, delivery_takeaway_date: e.target.value})} />
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <Label className="font-bold text-muted-foreground uppercase text-xs tracking-wider">{t("pricingMode")}</Label>
+          <div className="flex gap-4">
+            <Button variant={formData.pricing_mode === 'delivery' ? 'default' : 'outline'} onClick={() => setFormData({...formData, pricing_mode: 'delivery'})} className="flex-1">{t("delivery")}</Button>
+            <Button variant={formData.pricing_mode === 'takeaway' ? 'default' : 'outline'} onClick={() => setFormData({...formData, pricing_mode: 'takeaway'})} className="flex-1">{t("takeaway")}</Button>
+          </div>
+          {formData.pricing_mode === 'delivery' && (
+            <div className="mt-2 space-y-1 animate-in slide-in-from-top-1 duration-200">
+              <Label>{t("deliveryCharge")} (₹)</Label>
+              <Input type="number" inputMode="numeric" value={formData.delivery_charge || ""} onChange={e => setFormData({...formData, delivery_charge: Number(e.target.value)})} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
@@ -333,16 +468,29 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
                           </div>
                         </div>
                         {qty > 0 && isShort && (
-                          <div className="space-y-2 pt-2 border-t border-dashed">
-                            <div className="text-[10px] text-destructive flex items-center gap-1 font-bold uppercase"><AlertCircle className="h-3 w-3" /> {t("noStock")} {t("borrow")}?</div>
-                            <Select value={selected?.vendor_id?.toString() || ""} onValueChange={(v) => handleVendorSelect(it.id, v)}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t("all")} /></SelectTrigger>
-                              <SelectContent>
-                                {vendors.map(v => <SelectItem key={v.id} value={v.id.toString()}>{v.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                          <div className="space-y-2 mt-2 p-2 bg-destructive/10 rounded-md border border-destructive/20 animate-in fade-in zoom-in duration-300">
+                            <div className="text-[10px] text-destructive flex items-center gap-1 font-bold uppercase">
+                              <AlertCircle className="h-3 w-3" /> {t("noStock")} — {t("insufficientStock")}
+                            </div>
+                            <div className="space-y-1">
+                               <Label className="text-[9px] text-muted-foreground uppercase tracking-wider">{t("borrowedFrom")}</Label>
+                               <Select 
+                                 value={selected?.vendor_id?.toString() || ""} 
+                                 onValueChange={(v) => updateItemVendor(it.id, Number(v))}
+                               >
+                                 <SelectTrigger className="h-8 text-xs bg-card border-destructive/30">
+                                   <SelectValue placeholder={t("selectVendor")} />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   {vendors.map(v => <SelectItem key={v.id} value={v.id.toString()}>{v.name}</SelectItem>)}
+                                   {vendors.length === 0 && <div className="p-2 text-[10px] text-muted-foreground">Add borrowers in Inventory tab</div>}
+                                 </SelectContent>
+                               </Select>
+                            </div>
                           </div>
                         )}
+
+
                       </div>
                     );
                   })}
@@ -375,22 +523,50 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
                     </div>
                   </div>
                   {qty > 0 && isShort && (
-                    <div className="space-y-2 pt-2 border-t border-dashed">
-                      <div className="text-[10px] text-destructive flex items-center gap-1 font-bold uppercase"><AlertCircle className="h-3 w-3" /> {t("noStock")} {t("borrow")}?</div>
-                      <Select value={selected?.vendor_id?.toString() || ""} onValueChange={(v) => handleVendorSelect(it.id, v)}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t("all")} /></SelectTrigger>
-                        <SelectContent>
-                          {vendors.map(v => <SelectItem key={v.id} value={v.id.toString()}>{v.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-2 mt-2 p-2 bg-destructive/10 rounded-md border border-destructive/20 animate-in fade-in zoom-in duration-300">
+                      <div className="text-[10px] text-destructive flex items-center gap-1 font-bold uppercase">
+                        <AlertCircle className="h-3 w-3" /> {t("noStock")} — {t("insufficientStock")}
+                      </div>
+                      <div className="space-y-1">
+                         <Label className="text-[9px] text-muted-foreground uppercase tracking-wider">{t("borrowedFrom")}</Label>
+                         <Select 
+                           value={selected?.vendor_id?.toString() || ""} 
+                           onValueChange={(v) => updateItemVendor(it.id, Number(v))}
+                         >
+                           <SelectTrigger className="h-8 text-xs bg-card border-destructive/30">
+                             <SelectValue placeholder={t("selectVendor")} />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {vendors.map(v => <SelectItem key={v.id} value={v.id.toString()}>{v.name}</SelectItem>)}
+                             {vendors.length === 0 && <div className="p-2 text-[10px] text-muted-foreground">Add borrowers in Inventory tab</div>}
+                           </SelectContent>
+                         </Select>
+                      </div>
                     </div>
                   )}
+
+
+
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+
+      {selectedItems.some(it => {
+        const inv = (inventoryItems || []).find(i => i.id === it.item_id);
+        const avail = inv ? inv.available_quantity : 0;
+        return (avail === null || it.quantity > avail);
+      }) && (
+        <div className="p-4 bg-destructive/5 border-2 border-destructive/20 rounded-xl">
+          <div className="flex items-center gap-2 text-destructive font-bold uppercase text-xs tracking-wider">
+            <AlertCircle className="h-4 w-4" /> {t("noStock")} — {t("insufficientStock")}
+          </div>
+        </div>
+      )}
+
+
 
       <div className="space-y-2">
         <Label>{t("selectedItems")}</Label>
@@ -410,8 +586,8 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
                 <tr key={it.item_id} className="border-t">
                   <td className="p-2">
                     {it.item_name}
-                    {it.vendor_id && <div className="text-[10px] text-destructive font-bold uppercase">{t("borrowedFrom")}: {vendors.find(v => v.id === it.vendor_id)?.name}</div>}
                   </td>
+
                   <td className="p-2 text-center">{it.quantity}</td>
                   <td className="p-2 text-right">
                     {it.manualPrice ? (
@@ -430,10 +606,12 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
                   </td>
                 </tr>
               ))}
+              {selectedItems.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">{t("noItemsSelected")}</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
+
 
       <div className="pt-6 border-t space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-muted/20 p-4 rounded-lg">
@@ -451,39 +629,30 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
           </div>
         </div>
 
-        {formData.payment_method === 'upi' && formData.advance_amount > 0 && (
-          <div className="p-4 border rounded-lg space-y-4 bg-muted/10">
-            <div className="flex gap-2">
-              <Button size="sm" variant={upiType === 'smart' ? 'default' : 'outline'} onClick={() => setUpiType('smart')}>Smart QR</Button>
-              <Button size="sm" variant={upiType === 'static' ? 'default' : 'outline'} onClick={() => setUpiType('static')}>Static QR</Button>
-            </div>
+        {formData.payment_method === 'upi' && (
+          <div className="p-4 border rounded-lg space-y-4 bg-muted/10 animate-in fade-in duration-300">
             <div className="flex justify-center">
-              {upiType === 'smart' ? (
-                businessProfile?.upi_id ? (
-                  <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
-                    <QRCodeSVG 
-                      value={`upi://pay?pa=${businessProfile.upi_id}&pn=${encodeURIComponent(businessProfile.upi_name || 'Business')}&am=${formData.advance_amount}&cu=INR`} 
-                      size={200} 
-                    />
-                    <div className="text-sm font-bold text-black mt-2">Scan to pay {fmtINR(formData.advance_amount)}</div>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground p-4">UPI ID not configured in settings.</div>
-                )
-              ) : (
-                businessProfile?.static_qr_path ? (
-                  <div className="p-4 bg-white rounded-xl shadow-sm">
-                    <img src={`http://localhost:5000/${businessProfile.static_qr_path}`} alt="Static QR" className="w-[200px] h-[200px] object-cover" />
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground p-4">Static QR not uploaded in settings.</div>
-                )
-              )}
+              <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
+                <QRCodeSVG 
+                  value={`upi://pay?pa=9113565802.wa.8p7@waaxis&pn=${encodeURIComponent(businessProfile?.upi_name || 'Business')}&am=${totalAmount}&cu=INR`} 
+                  size={200} 
+                />
+                <div className="text-sm font-bold text-black mt-2">Scan to pay Total: {fmtINR(totalAmount)}</div>
+                <div className="text-[10px] text-muted-foreground">UPI ID: 9113565802.wa.8p7@waaxis</div>
+              </div>
             </div>
           </div>
         )}
 
-        <Button onClick={() => saveBooking('confirmed')} disabled={loading} className="w-full h-12 text-lg font-bold">{t("save")}</Button>
+        <div className="flex gap-4">
+          <Button variant="outline" onClick={() => saveBooking('draft')} disabled={loading} className="flex-1 h-12 font-bold border-primary text-primary hover:bg-primary/5">
+            {t("saveAsDraft")}
+          </Button>
+          <Button onClick={() => saveBooking('confirmed')} disabled={loading} className="flex-[2] h-12 text-lg font-bold">
+            {t("save")}
+          </Button>
+        </div>
+
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
+
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,47 +106,7 @@ const Reports = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
-    if (!data || data.length === 0) return toast.error("No data to export");
-    const doc = new jsPDF("l", "pt", "a4");
-    
-    // Header
-    doc.setFontSize(16);
-    doc.text(profile.name_kn || profile.name_en || "Shiva Shakti Shamiyana", 40, 40);
-    doc.setFontSize(12);
-    doc.text(`${t(activeTab)} ${t("reports")}`, 40, 60);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 80);
 
-    let head: string[][] = [];
-    let body: any[][] = [];
-
-    if (activeTab === "monthlyIncome" || activeTab === "dailyBookings") {
-      head = [[t("bookingId"), t("customer"), t("date"), t("total"), t("advance"), t("discount"), t("pending"), t("status")]];
-      body = data.map(r => [r.booking_id, r.customer_name, fmtDate(r.booking_date), r.total_amount, r.advance_amount, r.discount_amount, r.pending_amount, r.payment_status]);
-    } else if (activeTab === "pendingPayments") {
-      head = [[t("bookingId"), t("customer"), t("phone"), t("date"), t("total"), t("paid"), t("pending")]];
-      body = data.map(r => [r.booking_id, r.customer_name, r.phone_number, fmtDate(r.booking_date), r.total_amount, (r.advance_amount || 0), r.pending_amount]);
-    } else if (activeTab === "bookingStatus") {
-      head = [[t("bookingId"), t("customer"), t("date"), t("place"), t("functionType"), t("orderStatus"), t("paymentStatus"), t("total")]];
-      body = data.map(r => [r.booking_id, r.customer_name, fmtDate(r.booking_date), r.place, r.function_type, r.order_status, r.payment_status, r.total_amount]);
-    } else if (activeTab === "vendorBorrows") {
-      head = [[t("vendorName"), t("categoryItem"), t("qty"), t("bookingId"), t("date"), t("status"), t("paid")]];
-      body = data.map(r => [r.vendor_name, r.item_name, r.borrowed_quantity, r.booking_id, fmtDate(r.borrowed_at), r.return_status, r.amount_paid]);
-    }
-
-    autoTable(doc, {
-      startY: 100,
-      head,
-      body,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [41, 128, 185] },
-    });
-
-    doc.save(`${activeTab.replace(/\s+/g, '_').toLowerCase()}_report.pdf`);
-    toast.success("Report PDF downloaded.");
-  };
 
   const renderFilters = () => {
     switch (activeTab) {
@@ -405,23 +366,44 @@ const Reports = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleDownloadImage} disabled={data.length === 0}>
+                <Button variant="default" size="sm" onClick={handleDownloadImage} disabled={data.length === 0} className="bg-success hover:bg-success/90">
                   <ImageIcon className="mr-2 h-4 w-4" /> {t("exportImage")}
                 </Button>
-                <Button size="sm" onClick={handleDownloadPDF} disabled={data.length === 0}>
-                  <Download className="mr-2 h-4 w-4" /> {t("exportPdf")}
-                </Button>
+
               </div>
             </CardHeader>
             <CardContent className="pt-6">
               <div ref={reportRef} className="bg-white text-black p-4 md:p-6 rounded-md min-h-[400px]">
                 {/* Print Header inside the capture area */}
-                <div className="mb-6 border-b pb-4">
-                  <div className="text-2xl font-bold font-sans">{profile.name_kn || profile.name_en || "Business Name"}</div>
-                  <div className="text-sm font-semibold mt-1">{t(activeTab)} {t("reports")}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{t("dateTime")}: {new Date().toLocaleString()}</div>
+                <div className="mb-6 border-b-2 border-black pb-4 flex items-start gap-4">
+                  <div className="w-20 h-20 flex-shrink-0 border border-black flex items-center justify-center bg-gray-50 overflow-hidden">
+                    {profile.photo_url ? (
+                      <img src={profile.photo_url} alt="Logo" className="w-full h-full object-contain grayscale" />
+                    ) : profile.deity_image_path ? (
+                      <img src={`${API_BASE_URL.replace('/api', '')}/${profile.deity_image_path}`} alt="Deity" className="w-full h-full object-contain grayscale" />
+                    ) : (
+                      <span className="text-[10px] text-gray-400">LOGO</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-2xl font-bold font-sans text-black">{profile.name_kn || "ಶಿವಶಕ್ತಿ ಶಾಮಿಯಾನ"}</div>
+                    <div className="text-sm font-bold mt-1 text-black uppercase tracking-wide">{t(activeTab)} {t("reports")}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 font-medium">{t("dateTime")}: {new Date().toLocaleString()}</div>
+                    {profile.address1_kn && <div className="text-[10px] text-black mt-1 font-bold leading-tight whitespace-pre-line">{profile.address1_kn}</div>}
+                  </div>
+                  <div className="text-right text-[11px] font-bold text-black space-y-0.5">
+                    <div className="flex items-center justify-end gap-1">
+                      <span className="text-[8px] font-normal">Mob:</span> {profile.phone1 || '9110000000'}
+                    </div>
+                    {profile.phone2 && <div>{profile.phone2}</div>}
+                    {profile.phone3 && <div>{profile.phone3}</div>}
+                  </div>
                 </div>
-                {renderTable()}
+
+
+                <div className="overflow-x-auto">
+                  {renderTable()}
+                </div>
               </div>
             </CardContent>
           </Card>

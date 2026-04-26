@@ -78,24 +78,44 @@ export const BookingList = ({ bookings = [], onView, onEdit, onDelete, onStatusC
                   <Button variant="ghost" size="sm" onClick={() => onDelete(b.booking_id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
                 </td>
                 <td className="px-4 py-3">
-                  <Select 
-                    value={b.order_status} 
-                    onValueChange={(v) => onStatusChange(b.booking_id, v)}
-                    disabled={b.order_status === 'complete' || b.order_status === 'complete_returned'}
-                  >
-                    <SelectTrigger className="h-8 w-32 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending_request">{t("pending_request")}</SelectItem>
-                      <SelectItem value="confirmed">{t("confirmed")}</SelectItem>
-                      <SelectItem value="delivered">{t("delivered")}</SelectItem>
-                      <SelectItem value="returned">{t("returned")}</SelectItem>
-                      <SelectItem value="rejected">{t("rejected")}</SelectItem>
-                      <SelectItem value="complete" disabled>{t("complete")}</SelectItem>
-                      <SelectItem value="complete_returned" disabled>{t("complete_returned")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {b.order_status === 'pending_request' ? (
+                    <div className="flex gap-1">
+                      <Button 
+                        size="sm" 
+                        className="h-8 bg-green-600 hover:bg-green-700 text-white font-bold px-3 text-[10px]"
+                        onClick={() => onStatusChange(b.booking_id, 'confirmed')}
+                      >
+                        {t("accept")}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        className="h-8 font-bold px-3 text-[10px]"
+                        onClick={() => onStatusChange(b.booking_id, 'rejected')}
+                      >
+                        {t("reject")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select 
+                      value={b.order_status} 
+                      onValueChange={(v) => onStatusChange(b.booking_id, v)}
+                      disabled={b.order_status === 'complete' || b.order_status === 'complete_returned'}
+                    >
+                      <SelectTrigger className="h-8 w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending_request">{t("pending_request")}</SelectItem>
+                        <SelectItem value="confirmed">{t("confirmed")}</SelectItem>
+                        <SelectItem value="delivered">{t("delivered")}</SelectItem>
+                        <SelectItem value="returned">{t("returned")}</SelectItem>
+                        <SelectItem value="rejected">{t("rejected")}</SelectItem>
+                        <SelectItem value="complete" disabled>{t("complete")}</SelectItem>
+                        <SelectItem value="complete_returned" disabled>{t("complete_returned")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </td>
               </tr>
             ))}

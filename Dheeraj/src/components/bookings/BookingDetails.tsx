@@ -85,7 +85,10 @@ export const BookingDetails = ({ booking, onClose, onEdit, onAddPayment, onPrint
       <div className="w-full md:w-[35%] border-r overflow-y-auto p-6 space-y-6 bg-card pb-24">
         
         {/* BOOKING REFERENCE */}
-        <div className="p-4 rounded-xl border bg-muted/20">
+        <div className="p-4 rounded-xl border bg-muted/20 relative overflow-hidden">
+          {booking.voice_note_path?.startsWith('token:') && (
+            <div className="absolute top-0 right-0 bg-primary text-white text-[10px] px-2 py-0.5 font-bold uppercase rounded-bl">Public Order</div>
+          )}
           <div className="text-2xl font-bold font-mono tracking-tight">{booking.booking_id}</div>
           <div className="text-xs text-muted-foreground font-mono mt-1">{t("customer")} ID: {booking.customer_id}</div>
           <div className="flex gap-2 mt-3">
@@ -144,20 +147,39 @@ export const BookingDetails = ({ booking, onClose, onEdit, onAddPayment, onPrint
               <MessageSquare className="mr-2 h-4 w-4" /> {t("reminder")}
             </Button>
           )}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={onEdit} disabled={booking.order_status === 'complete' || booking.order_status === 'complete_returned'}><Pencil className="mr-2 h-4 w-4" /> {t("edit")}</Button>
-            <Button variant="outline" className="flex-1" onClick={onAddPayment}><Plus className="mr-2 h-4 w-4" /> {t("advance")}</Button>
-          </div>
+          {booking.order_status === 'pending_request' ? (
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold" 
+                onClick={async () => { await api.updateStatus(booking.booking_id, 'confirmed'); toast.success("Order Accepted"); onClose(); }}
+              >
+                {t("accept")}
+              </Button>
+              <Button 
+                variant="destructive" 
+                className="flex-1 font-bold" 
+                onClick={async () => { await api.updateStatus(booking.booking_id, 'rejected'); toast.success("Order Rejected"); onClose(); }}
+              >
+                {t("reject")}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={onEdit} disabled={booking.order_status === 'complete' || booking.order_status === 'complete_returned'}><Pencil className="mr-2 h-4 w-4" /> {t("edit")}</Button>
+              <Button variant="outline" className="flex-1" onClick={onAddPayment}><Plus className="mr-2 h-4 w-4" /> {t("advance")}</Button>
+            </div>
+          )}
         </div>
 
       </div>
 
       {/* RIGHT PANEL - INVOICE PREVIEW */}
-      <div className="w-full md:w-[65%] bg-zinc-100 p-8 overflow-y-auto flex items-start justify-center">
-        <div className="shadow-2xl bg-white">
+      <div className="w-full md:w-[65%] bg-zinc-100 p-2 md:p-8 overflow-x-hidden overflow-y-auto flex items-start justify-center border-t md:border-t-0">
+        <div className="shadow-2xl bg-white origin-top scale-[0.4] sm:scale-[0.6] md:scale-90 lg:scale-100 mb-[-60%] sm:mb-[-40%] md:mb-0">
           <InvoicePreview booking={booking} ref={invoiceRef} />
         </div>
       </div>
+
       
     </div>
   );

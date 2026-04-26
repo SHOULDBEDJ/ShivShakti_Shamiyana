@@ -21,15 +21,22 @@ export const monthStartISO = () => {
 };
 
 export const statusTone: Record<string, string> = {
+  pending_request: "bg-primary/15 text-primary border-primary/30 animate-pulse",
+  confirmed: "bg-success/15 text-success border-success/30",
+  delivered: "bg-info/15 text-info border-info/30",
+  returned: "bg-warning/15 text-warning border-warning/30",
+  rejected: "bg-destructive/15 text-destructive border-destructive/30",
+  complete: "bg-success/20 text-success border-success/40 font-bold",
+  complete_returned: "bg-success/20 text-success border-success/40",
+  draft: "bg-muted text-muted-foreground border-border",
+  
+  // Legacy or uppercase versions
   Incoming: "bg-info/15 text-info border-info/30",
   Confirmed: "bg-accent/20 text-accent-foreground border-accent/40",
-  Ready: "bg-warning/20 text-warning-foreground border-warning/40",
-  "Out for Delivery": "bg-info/20 text-info border-info/40",
   Delivered: "bg-success/15 text-success border-success/30",
   Returned: "bg-muted text-muted-foreground border-border",
-  "Late Return": "bg-destructive/15 text-destructive border-destructive/30",
-  "Partially Returned": "bg-warning/20 text-warning-foreground border-warning/40",
   Paid: "bg-success/15 text-success border-success/30",
   Partial: "bg-warning/20 text-warning-foreground border-warning/40",
   Unpaid: "bg-destructive/15 text-destructive border-destructive/30",
 };
+

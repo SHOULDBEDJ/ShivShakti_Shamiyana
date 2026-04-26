@@ -17,7 +17,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PhotoViewer } from "@/components/gallery/PhotoViewer";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = '/api';
+const FILE_BASE_URL = ''; // Files are served from root /uploads
+
+
 
 const AlbumView = () => {
   const { t } = useI18n();
@@ -230,10 +233,11 @@ const AlbumView = () => {
               onClick={() => selectMode ? toggleSelect(photo.id) : setViewerPhoto(photo)}
             >
               <img 
-                src={`${API_BASE_URL}/${photo.file_path}`} 
+                src={`${FILE_BASE_URL}/${photo.file_path}`} 
                 className="w-full h-full object-cover transition-transform group-hover:scale-105" 
                 loading="lazy" 
               />
+
               
               {/* Overlay for selection */}
               {(selectMode || selectedIds.includes(photo.id)) && (

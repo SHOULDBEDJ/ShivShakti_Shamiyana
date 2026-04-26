@@ -175,8 +175,13 @@ const Bookings = () => {
             booking={selectedBooking}
             isOpen={isAddPaymentModalOpen}
             onClose={() => setIsAddPaymentModalOpen(false)}
-            onSuccess={loadBookings}
+            onSuccess={async () => {
+              await loadBookings();
+              const fresh = await api.getBooking(selectedBooking.booking_id);
+              setSelectedBooking(fresh);
+            }}
           />
+
         </>
       )}
     </>

@@ -60,6 +60,15 @@ const settingsStorage = multer.diskStorage({
 });
 const settingsUpload = multer({ storage: settingsStorage });
 
+// General upload for single files
+const upload = multer({ 
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
+  })
+});
+
+
 // --- UTILS ---
 function generateID() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -450,63 +459,78 @@ app.get('/api/order-links', async (req, res) => {
   }
 });
 
-app.get('/api/public-orders/validate/:token', async (req, res) => {
-  const { token } = req.params;
+app.get('/api/public/validate-link', async (req, res) => {
+  const { token } = req.query;
   try {
     const result = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
     const link = result.rows[0];
-    if (!link) return res.status(404).json({ error: 'Invalid link' });
+    if (!link) return res.json({ valid: false });
+    
     if (new Date() > new Date(link.expires_at)) {
       await db.execute({ sql: 'UPDATE order_links SET status = "expired" WHERE token = ?', args: [token] });
-      return res.status(404).json({ error: 'Link expired' });
+      return res.json({ valid: false });
     }
     res.json({ valid: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/public-orders/:token', async (req, res) => {
-  const { token } = req.params;
+app.post('/api/public/submit-public-order', async (req, res) => {
+  const { token } = req.query;
   const { customer_name, phone_number, place, pricing_mode, delivery_takeaway_date, items, total_amount } = req.body;
+  
   try {
-    const linkResult = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
-    const link = linkResult.rows[0];
-    if (!link) return res.status(404).json({ error: 'Invalid link' });
-    
-    const customerResult = await db.execute({ sql: 'SELECT customer_id FROM customers WHERE phone = ?', args: [phone_number] });
-    const customer = customerResult.rows[0];
-    let customer_id = customer ? customer.customer_id : await getUniqueCustomerID();
-    
+    // 1. Verify token
+    const linkRes = await db.execute({ sql: 'SELECT id FROM order_links WHERE token = ? AND status = "active"', args: [token] });
+    if (linkRes.rows.length === 0) return res.status(401).json({ error: 'Invalid or expired link' });
+
     const tx = await db.transaction('write');
     try {
-      if (!customer) {
+      // 2. Generate IDs
+      const booking_id = `REQ-${Date.now().toString().slice(-6)}`;
+      const customer_id = `CUST-${phone_number.slice(-4)}-${Date.now().toString().slice(-4)}`;
+
+      // 3. Upsert Customer
+      const custRes = await tx.execute({ sql: 'SELECT customer_id FROM customers WHERE phone = ?', args: [phone_number] });
+      let finalCustId = customer_id;
+      if (custRes.rows.length > 0) {
+        finalCustId = custRes.rows[0].customer_id;
+      } else {
         await tx.execute({
           sql: 'INSERT INTO customers (customer_id, name, phone, place) VALUES (?, ?, ?, ?)',
           args: [customer_id, customer_name, phone_number, place]
         });
       }
-      const booking_id = await getUniqueBookingID();
+
+      // 4. Create Booking (status: pending_request)
       await tx.execute({
-        sql: `INSERT INTO bookings (booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, pending_amount, order_status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [booking_id, customer_id, delivery_takeaway_date, pricing_mode, place, total_amount, total_amount, 'pending_request', 'pending']
+        sql: `INSERT INTO bookings (
+          booking_id, customer_id, pricing_mode, delivery_takeaway_date, place, 
+          total_amount, pending_amount, order_status, payment_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          booking_id, finalCustId, pricing_mode, delivery_takeaway_date, place,
+          total_amount, total_amount, 'pending_request', 'pending'
+        ]
       });
-      for (const item of items) {
+
+      // 5. Add Items
+      for (const it of items) {
         await tx.execute({
-          sql: `INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)`,
-          args: [booking_id, item.item_id, item.item_name, item.quantity, item.unit_price, item.subtotal]
+          sql: 'INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)',
+          args: [booking_id, it.item_id, it.item_name, it.quantity, it.unit_price, it.subtotal]
         });
       }
+
+      // 6. Invalidate Link
       await tx.execute({ sql: 'UPDATE order_links SET status = "used" WHERE token = ?', args: [token] });
+
       await tx.commit();
-      res.status(201).json({ booking_id, message: 'Order sent!' });
+      res.json({ success: true, booking_id });
     } catch (err) {
       await tx.rollback();
       throw err;
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- INVENTORY ---
@@ -835,9 +859,10 @@ app.post('/api/gallery/albums', async (req, res) => {
         INSERT INTO gallery_albums (name, album_type, booking_id, inventory_item_id)
         VALUES (?, ?, ?, ?)
       `,
-      args: [name, album_type, booking_id, inventory_item_id]
+      args: [name, album_type || 'general', booking_id || null, inventory_item_id || null]
     });
     res.status(201).json({ id: info.lastInsertRowid });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1183,7 +1208,61 @@ app.get('/api/reports/pending-payments', async (req, res) => {
   }
 });
 
+app.get('/api/reports/monthly', async (req, res) => {
+  const { month, year } = req.query; // format: MM, YYYY
+  try {
+    const result = await db.execute({
+      sql: `
+        SELECT b.*, c.name as customer_name
+        FROM bookings b
+        JOIN customers c ON b.customer_id = c.customer_id
+        WHERE strftime('%m', b.booking_date) = ? AND strftime('%Y', b.booking_date) = ?
+        ORDER BY b.booking_date DESC
+      `,
+      args: [month, year]
+    });
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/reports/daily', async (req, res) => {
+  const { date } = req.query; // format: YYYY-MM-DD
+  try {
+    const result = await db.execute({
+      sql: `
+        SELECT b.*, c.name as customer_name
+        FROM bookings b
+        JOIN customers c ON b.customer_id = c.customer_id
+        WHERE date(b.booking_date) = date(?)
+        ORDER BY b.booking_date DESC
+      `,
+      args: [date]
+    });
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/reports/pending-payments', async (req, res) => {
+  try {
+    const result = await db.execute(`
+      SELECT b.*, c.name as customer_name, c.phone as phone_number
+      FROM bookings b
+      JOIN customers c ON b.customer_id = c.customer_id
+      WHERE b.payment_status = 'pending'
+      ORDER BY b.booking_date ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/reports/booking-status', async (req, res) => {
+
   const { from, to, status } = req.query;
   try {
     let sql = `
@@ -1203,6 +1282,19 @@ app.get('/api/reports/booking-status', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/payments', async (req, res) => {
+  try {
+    const result = await db.execute(`
+      SELECT p.*, c.name as customer_name, b.booking_id
+      FROM payments p
+      JOIN bookings b ON p.booking_id = b.booking_id
+      JOIN customers c ON b.customer_id = c.customer_id
+      ORDER BY p.paid_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/reports/vendor-borrows', async (req, res) => {
@@ -1226,6 +1318,217 @@ app.get('/api/reports/vendor-borrows', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// --- STAFF (WORKERS) ---
+app.get('/api/workers', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM workers ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/workers', async (req, res) => {
+  const { name, role, phone, salary, address, join_date } = req.body;
+  try {
+    await db.execute({
+      sql: 'INSERT INTO workers (name, role, phone, salary, address, join_date) VALUES (?, ?, ?, ?, ?, ?)',
+      args: [name, role, phone, salary, address, join_date]
+    });
+    res.status(201).json({ message: 'Added' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/workers/:id', async (req, res) => {
+  const { name, role, phone, salary, address, join_date } = req.body;
+  try {
+    await db.execute({
+      sql: 'UPDATE workers SET name = ?, role = ?, phone = ?, salary = ?, address = ?, join_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [name, role, phone, salary, address, join_date, req.params.id]
+    });
+    res.json({ message: 'Updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/workers/:id', async (req, res) => {
+  try {
+    await db.execute({ sql: 'DELETE FROM workers WHERE id = ?', args: [req.params.id] });
+    res.json({ message: 'Deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- EXPENSES ---
+app.get('/api/expenses', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM expenses ORDER BY date DESC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/expenses', async (req, res) => {
+  const { date, amount, category, description, payment_method } = req.body;
+  try {
+    await db.execute({
+      sql: 'INSERT INTO expenses (date, amount, category, description, payment_method) VALUES (?, ?, ?, ?, ?)',
+      args: [date, amount, category, description, payment_method]
+    });
+    res.status(201).json({ message: 'Added' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/expenses/:id', async (req, res) => {
+  try {
+    await db.execute({ sql: 'DELETE FROM expenses WHERE id = ?', args: [req.params.id] });
+    res.json({ message: 'Deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/settings/expense-types', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM expense_types ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/settings/expense-types', async (req, res) => {
+  const { name } = req.body;
+  try {
+    await db.execute({ sql: 'INSERT INTO expense_types (name) VALUES (?)', args: [name] });
+    res.status(201).json({ message: 'Added' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- BUSINESS PROFILE ---
+app.get('/api/profile', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Alias for frontend compatibility
+app.get('/api/settings/business-profile', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/profile', settingsUpload.fields([
+  { name: 'photo_url', maxCount: 1 },
+  { name: 'deity_image', maxCount: 1 },
+  { name: 'static_qr', maxCount: 1 }
+]), async (req, res) => {
+  const { 
+    business_name, name_kn, owner_name, blessing_kn, 
+    phone, phone1, phone2, phone3, 
+    address, address1_kn, address2_kn, address3_kn, 
+    upi_id, upi_name 
+  } = req.body;
+
+  const photo_url = req.files?.['photo_url'] ? `/uploads/settings/${req.files['photo_url'][0].filename}` : req.body.photo_url;
+  const deity_image_path = req.files?.['deity_image'] ? `/uploads/settings/${req.files['deity_image'][0].filename}` : req.body.deity_image_path;
+  const static_qr_path = req.files?.['static_qr'] ? `/uploads/settings/${req.files['static_qr'][0].filename}` : req.body.static_qr_path;
+
+  try {
+    const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
+    if (existing.rows.length > 0) {
+      await db.execute({
+        sql: `UPDATE business_profile SET 
+                business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
+                phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
+                address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
+                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?,
+                updated_at = CURRENT_TIMESTAMP 
+              WHERE id = 1`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+        ]
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO business_profile (
+                id, business_name, name_kn, owner_name, blessing_kn, 
+                phone, phone1, phone2, phone3, 
+                address, address1_kn, address2_kn, address3_kn, 
+                photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+        ]
+      });
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Alias for frontend compatibility
+app.post('/api/settings/business-profile', settingsUpload.fields([
+  { name: 'photo_url', maxCount: 1 },
+  { name: 'deity_image', maxCount: 1 },
+  { name: 'static_qr', maxCount: 1 }
+]), async (req, res) => {
+  // Same logic as /api/profile post
+  const { 
+    business_name, name_kn, owner_name, blessing_kn, 
+    phone, phone1, phone2, phone3, 
+    address, address1_kn, address2_kn, address3_kn, 
+    upi_id, upi_name 
+  } = req.body;
+
+  const photo_url = req.files?.['photo_url'] ? `/uploads/settings/${req.files['photo_url'][0].filename}` : req.body.photo_url;
+  const deity_image_path = req.files?.['deity_image'] ? `/uploads/settings/${req.files['deity_image'][0].filename}` : req.body.deity_image_path;
+  const static_qr_path = req.files?.['static_qr'] ? `/uploads/settings/${req.files['static_qr'][0].filename}` : req.body.static_qr_path;
+
+  try {
+    const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
+    if (existing.rows.length > 0) {
+      await db.execute({
+        sql: `UPDATE business_profile SET 
+                business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
+                phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
+                address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
+                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?,
+                updated_at = CURRENT_TIMESTAMP 
+              WHERE id = 1`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+        ]
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO business_profile (
+                id, business_name, name_kn, owner_name, blessing_kn, 
+                phone, phone1, phone2, phone3, 
+                address, address1_kn, address2_kn, address3_kn, 
+                photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+        ]
+      });
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- UPLOAD ---
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+  res.json({ url });
 });
 
 module.exports = app;

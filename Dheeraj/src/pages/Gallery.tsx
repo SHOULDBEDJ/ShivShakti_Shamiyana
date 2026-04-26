@@ -17,7 +17,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { useI18n } from "@/context/I18nContext";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = '/api';
+const FILE_BASE_URL = ''; // Files are served from root /uploads
+
+
 
 const Gallery = () => {
   const { t } = useI18n();
@@ -33,9 +36,8 @@ const Gallery = () => {
   const [newAlbum, setNewAlbum] = useState({
     name: "",
     album_type: "general",
-    booking_id: "",
-    inventory_item_id: ""
   });
+
 
   const [renameModal, setRenameModal] = useState<{show: boolean, id: any, name: string}>({ show: false, id: null, name: "" });
 
@@ -66,8 +68,9 @@ const Gallery = () => {
       await api.createAlbum(newAlbum);
       toast.success("Album created");
       setShowCreateModal(false);
-      setNewAlbum({ name: "", album_type: "general", booking_id: "", inventory_item_id: "" });
+      setNewAlbum({ name: "", album_type: "general" });
       fetchAlbums();
+
     } catch (err) {
       toast.error("Failed to create album");
     }
@@ -127,16 +130,8 @@ const Gallery = () => {
           />
         </form>
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-full md:w-40"><Filter className="h-4 w-4 mr-2" /><SelectValue placeholder={t("all")} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("all")}</SelectItem>
-              <SelectItem value="booking">{t("bookings")}</SelectItem>
-              <SelectItem value="inventory">{t("inventory")}</SelectItem>
-              <SelectItem value="general">{t("other")}</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={sort} onValueChange={setSort}>
+
             <SelectTrigger className="w-full md:w-40"><SelectValue placeholder={t("all")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="newest">{t("thisMonth")}</SelectItem>
@@ -175,11 +170,12 @@ const Gallery = () => {
                 <>
                   <div className="aspect-[4/3] relative bg-muted flex items-center justify-center overflow-hidden">
                     {album.cover_photo_path ? (
-                      <img 
-                        src={`${API_BASE_URL}/${album.cover_photo_path}`} 
-                        alt={album.name} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
+                        <img 
+                          src={`${FILE_BASE_URL}/${album.cover_photo_path}`} 
+                          alt={album.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+
                     ) : (
                       <ImageIcon className="h-12 w-12 opacity-20" />
                     )}
@@ -214,8 +210,9 @@ const Gallery = () => {
                 <>
                   <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
                     {album.cover_photo_path ? (
-                      <img src={`${API_BASE_URL}/${album.cover_photo_path}`} className="w-full h-full object-cover" />
+                      <img src={`${FILE_BASE_URL}/${album.cover_photo_path}`} className="w-full h-full object-cover" />
                     ) : (
+
                       <ImageIcon className="h-6 w-6 opacity-20" />
                     )}
                   </div>
@@ -257,19 +254,8 @@ const Gallery = () => {
               <label className="text-sm font-medium">{t("name")}</label>
               <Input placeholder={t("newCategoryName")} value={newAlbum.name} onChange={e => setNewAlbum({...newAlbum, name: e.target.value})} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("type")}</label>
-              <Select value={newAlbum.album_type} onValueChange={v => setNewAlbum({...newAlbum, album_type: v})}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="booking">{t("bookings")}</SelectItem>
-                  <SelectItem value="inventory">{t("inventory")}</SelectItem>
-                  <SelectItem value="general">{t("other")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* TODO: Add search for bookings/items if needed in v2 */}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>{t("cancel")}</Button>
             <Button onClick={createAlbum}>{t("save")}</Button>

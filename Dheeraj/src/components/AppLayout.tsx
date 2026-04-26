@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { BusinessLogo } from "@/components/BusinessLogo";
-import { AIAssistant } from "@/components/AIAssistant";
 import { ModuleKey } from "@/lib/permissions";
+
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflineStatus } from "@/components/OfflineStatus";
 
@@ -23,8 +23,9 @@ const navItems: NavItem[] = [
   { to: "/inventory", key: "inventory", icon: Boxes },
   { to: "/income", key: "income", icon: IndianRupee },
   { to: "/expenses", key: "expenses", icon: Wallet },
-  { to: "/staff", key: "staff", icon: Users },
-  { to: "/vendors", key: "vendors", icon: Truck },
+
+
+
   { to: "/reports", key: "reports", icon: BarChart3 },
   { to: "/order-link", key: "orderLink", icon: Link2 },
   { to: "/gallery", key: "gallery", icon: ImageIcon },
@@ -151,8 +152,7 @@ export const AppLayout = () => {
 
       <InstallPrompt />
       <OfflineStatus />
-      {/* Floating Kannada voice assistant — visible on every authed page */}
-      <AIAssistant />
     </div>
   );
 };
+

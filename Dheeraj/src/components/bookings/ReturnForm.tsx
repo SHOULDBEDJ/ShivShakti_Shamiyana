@@ -33,7 +33,6 @@ export const ReturnForm = ({ booking, onClose, onComplete }: ReturnFormProps) =>
   const [paymentMethod, setPaymentMethod] = useState<'' | 'cash' | 'upi'>('');
   const [loading, setLoading] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
-  const [upiType, setUpiType] = useState<'smart' | 'static'>('smart');
 
   const categories = Array.from(new Set(items.map(it => it.category_name || 'Independent')));
 
@@ -229,33 +228,16 @@ export const ReturnForm = ({ booking, onClose, onComplete }: ReturnFormProps) =>
             </div>
           </div>
           {paymentMethod === 'upi' && paymentAmount > 0 && (
-            <div className="p-4 border rounded-lg space-y-4 bg-background">
-              <div className="flex gap-2">
-                <Button size="sm" variant={upiType === 'smart' ? 'default' : 'outline'} onClick={() => setUpiType('smart')}>Smart QR</Button>
-                <Button size="sm" variant={upiType === 'static' ? 'default' : 'outline'} onClick={() => setUpiType('static')}>Static QR</Button>
-              </div>
+            <div className="p-4 border rounded-lg space-y-4 bg-background animate-in fade-in duration-300">
               <div className="flex justify-center">
-                {upiType === 'smart' ? (
-                  businessProfile?.upi_id ? (
-                    <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
-                      <QRCodeSVG 
-                        value={`upi://pay?pa=${businessProfile.upi_id}&pn=${encodeURIComponent(businessProfile.upi_name || 'Business')}&am=${paymentAmount}&cu=INR`} 
-                        size={150} 
-                      />
-                      <div className="text-sm font-bold text-black mt-2">Scan to pay {fmtINR(paymentAmount)}</div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-4">UPI ID not configured in settings.</div>
-                  )
-                ) : (
-                  businessProfile?.static_qr_path ? (
-                    <div className="p-4 bg-white rounded-xl shadow-sm">
-                      <img src={`http://localhost:5000/${businessProfile.static_qr_path}`} alt="Static QR" className="w-[150px] h-[150px] object-cover" />
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-4">Static QR not uploaded in settings.</div>
-                  )
-                )}
+                <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
+                  <QRCodeSVG 
+                    value={`upi://pay?pa=9113565802.wa.8p7@waaxis&pn=${encodeURIComponent(businessProfile?.upi_name || 'Business')}&am=${paymentAmount}&cu=INR`} 
+                    size={150} 
+                  />
+                  <div className="text-sm font-bold text-black mt-2">Scan to pay {fmtINR(paymentAmount)}</div>
+                  <div className="text-[10px] text-muted-foreground">UPI ID: 9113565802.wa.8p7@waaxis</div>
+                </div>
               </div>
             </div>
           )}

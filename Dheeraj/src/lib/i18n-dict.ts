@@ -11,7 +11,8 @@ export const dict: Record<string, { en: string; kn: string }> = {
   inventory: { en: "Inventory", kn: "ಸಾಮಗ್ರಿ" },
   expenses: { en: "Expenses", kn: "ವೆಚ್ಚಗಳು" },
   income: { en: "Income", kn: "ಆದಾಯ" },
-  vendors: { en: "Vendors", kn: "ಪೂರೈಕೆದಾರರು" },
+  borrow: { en: "Borrow", kn: "ಎರವಲು" },
+
   reports: { en: "Reports", kn: "ವರದಿಗಳು" },
   staff: { en: "Staff", kn: "ಸಿಬ್ಬಂದಿ" },
   orderLink: { en: "Order Link", kn: "ಆದೇಶ ಲಿಂಕ್" },
@@ -50,6 +51,10 @@ export const dict: Record<string, { en: string; kn: string }> = {
   confirm: { en: "Confirm", kn: "ಖಚಿತಪಡಿಸಿ" },
   error: { en: "Error", kn: "ದೋಷ" },
   success: { en: "Success", kn: "ಯಶಸ್ವಿ" },
+  refresh: { en: "Refresh", kn: "ಮರುಲೋಡ್" },
+  accept: { en: "Accept", kn: "ಸ್ವೀಕರಿಸಿ" },
+  reject: { en: "Reject", kn: "ತಿರಸ್ಕರಿಸಿ" },
+
 
   // ----- Common fields -----
   name: { en: "Name", kn: "ಹೆಸರು" },
@@ -118,6 +123,14 @@ export const dict: Record<string, { en: string; kn: string }> = {
   revenueThisMonth: { en: "Revenue (this month)", kn: "ಆದಾಯ (ಈ ತಿಂಗಳು)" },
   expensesThisMonth: { en: "Expenses (this month)", kn: "ವೆಚ್ಚಗಳು (ಈ ತಿಂಗಳು)" },
   profit: { en: "Profit", kn: "ಲಾಭ" },
+  totalRecords: { en: "Total records", kn: "ಒಟ್ಟು ದಾಖಲೆಗಳು" },
+  totalRevenue: { en: "Total revenue", kn: "ಒಟ್ಟು ಆದಾಯ" },
+  netProfit: { en: "Net profit", kn: "ನಿವ್ವಳ ಲಾಭ" },
+  breakdown: { en: "Breakdown", kn: "ವಿವರ" },
+  estimatedProfit: { en: "Estimated profit", kn: "ಅಂದಾಜು ಲಾಭ" },
+  transactions: { en: "Transactions", kn: "ವಹಿವಾಟುಗಳು" },
+  profitDetailInstruction: { en: "This profit is calculated based on total monthly revenue minus total monthly expenses.", kn: "ಈ ಲಾಭವನ್ನು ಒಟ್ಟು ಮಾಸಿಕ ಆದಾಯದಿಂದ ಒಟ್ಟು ಮಾಸಿಕ ವೆಚ್ಚವನ್ನು ಕಳೆಯುವ ಮೂಲಕ ಲೆಕ್ಕಹಾಕಲಾಗುತ್ತದೆ." },
+
 
   // ----- Bookings -----
   bookingsSubtitle: { en: "Create, track and update every event booking.", kn: "ಪ್ರತಿ ಕಾರ್ಯಕ್ರಮದ ಬುಕಿಂಗ್ ಅನ್ನು ರಚಿಸಿ, ಟ್ರ್ಯಾಕ್ ಮಾಡಿ ಮತ್ತು ನವೀಕರಿಸಿ.", },
@@ -154,7 +167,16 @@ export const dict: Record<string, { en: string; kn: string }> = {
   pendingAmount: { en: "Pending amount", kn: "ಬಾಕಿ ಮೊತ್ತ" },
   saveBooking: { en: "Save booking", kn: "ಬುಕಿಂಗ್ ಉಳಿಸಿ" },
   insufficientStock: { en: "Insufficient stock. Borrow from vendor?", kn: "ಸ್ಟಾಕ್ ಕೊರತೆ. ಪೂರೈಕೆದಾರರಿಂದ ಪಡೆಯುವುದೇ?" },
+  borrowingNeeded: { en: "Borrowing Needed", kn: "ಎರವಲು ಪಡೆಯುವ ಅಗತ್ಯವಿದೆ" },
+  borrowShortfallMessage: { en: "Some items in your inventory are out of stock. Please select which vendor you are borrowing the remaining items from.", kn: "ನಿಮ್ಮ ದಾಸ್ತಾನಿನಲ್ಲಿ ಕೆಲವು ವಸ್ತುಗಳು ಖಾಲಿಯಾಗಿವೆ. ಉಳಿದ ವಸ್ತುಗಳನ್ನು ಯಾವ ಪೂರೈಕೆದಾರರಿಂದ ಎರವಲು ಪಡೆಯುತ್ತಿರುವಿರಿ ಎಂಬುದನ್ನು ದಯವಿಟ್ಟು ಆರಿಸಿ." },
+  borrowedFrom: { en: "Borrowed from", kn: "ಇವರಿಂದ ಎರವಲು ಪಡೆದದ್ದು" },
+  items: { en: "items", kn: "ವಸ್ತುಗಳು" },
   selectVendor: { en: "Select vendor", kn: "ಪೂರೈಕೆದಾರರನ್ನು ಆರಿಸಿ" },
+  noItemsSelected: { en: "No items selected.", kn: "ಯಾವುದೇ ವಸ್ತುಗಳನ್ನು ಆರಿಸಿಲ್ಲ." },
+  addVendorInModule: { en: "Please add a vendor in the Vendors module first.", kn: "ದಯವಿಟ್ಟು ಮೊದಲು ಪೂರೈಕೆದಾರರ ವಿಭಾಗದಲ್ಲಿ ಪೂರೈಕೆದಾರರನ್ನು ಸೇರಿಸಿ." },
+
+
+
   orderStatus: { en: "Order status", kn: "ಆದೇಶದ ಸ್ಥಿತಿ" },
   paymentStatus: { en: "Payment status", kn: "ಪಾವತಿ ಸ್ಥಿತಿ" },
   bookingDetails: { en: "Booking details", kn: "ಬುಕಿಂಗ್ ವಿವರಗಳು" },
@@ -208,19 +230,15 @@ export const dict: Record<string, { en: string; kn: string }> = {
   other: { en: "Other", kn: "ಇತರೆ" },
 
   // ----- Vendors -----
-  vendorManagement: { en: "Vendor Management", kn: "ಪೂರೈಕೆದಾರರ ನಿರ್ವಹಣೆ" },
-  vendorSubtitle: { en: "Manage external suppliers, track borrowed items, and log payments.", kn: "ಹೊರಗಿನ ಪೂರೈಕೆದಾರರನ್ನು ನಿರ್ವಹಿಸಿ, ಎರವಲು ಪಡೆದ ವಸ್ತುಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ ಮತ್ತು ಪಾವತಿಗಳನ್ನು ದಾಖಲಿಸಿ." },
-  addVendor: { en: "Add vendor", kn: "ಪೂರೈಕೆದಾರರನ್ನು ಸೇರಿಸಿ" },
-  editVendor: { en: "Edit vendor", kn: "ಪೂರೈಕೆದಾರರನ್ನು ಸಂಪಾದಿಸಿ" },
-  vendorName: { en: "Vendor name", kn: "ಪೂರೈಕೆದಾರರ ಹೆಸರು" },
-  noPhone: { en: "No phone", kn: "ಫೋನ್ ಇಲ್ಲ" },
-  pendingBorrowsCount: { en: "Pending borrows", kn: "ಬಾಕಿ ಇರುವ ಎರವಲುಗಳು" },
-  borrowedItems: { en: "Borrowed items", kn: "ಎರವಲು ಪಡೆದ ವಸ್ತುಗಳು" },
-  paymentHistory: { en: "Payment history", kn: "ಪಾವತಿ ಇತಿಹಾಸ" },
-  noVendorsFound: { en: "No vendors found", kn: "ಯಾವುದೇ ಪೂರೈಕೆದಾರರು ಕಂಡುಬಂದಿಲ್ಲ" },
-  noBorrowedItems: { en: "No borrowed items found for this vendor.", kn: "ಈ ಪೂರೈಕೆದಾರರಿಗೆ ಯಾವುದೇ ಎರವಲು ಪಡೆದ ವಸ್ತುಗಳು ಕಂಡುಬಂದಿಲ್ಲ." },
-  updateReturn: { en: "Update return", kn: "ಹಿಂತಿರುಗಿಸುವಿಕೆ ನವೀಕರಿಸಿ" },
-  lifetimePaid: { en: "Lifetime paid", kn: "ಒಟ್ಟು ಪಾವತಿಸಿದ ಮೊತ್ತ" },
+  borrowModule: { en: "Borrow Module", kn: "ಎರವಲು ವಿಭಾಗ" },
+  borrowSubtitle: { en: "Manage items borrowed from others. Track names and quantities.", kn: "ಇತರರಿಂದ ಎರವಲು ಪಡೆದ ವಸ್ತುಗಳನ್ನು ನಿರ್ವಹಿಸಿ. ಹೆಸರುಗಳು ಮತ್ತು ಪ್ರಮಾಣಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ." },
+  addBorrower: { en: "Add Borrower", kn: "ಎರವಲು ನೀಡುವವರನ್ನು ಸೇರಿಸಿ" },
+  editBorrower: { en: "Edit Borrower", kn: "ಎರವಲು ನೀಡುವವರನ್ನು ಸಂಪಾದಿಸಿ" },
+  borrowerName: { en: "Borrower Name", kn: "ಎರವಲು ನೀಡುವವರ ಹೆಸರು" },
+  borrowedItemsList: { en: "Borrowed Items", kn: "ಎರವಲು ಪಡೆದ ವಸ್ತುಗಳು" },
+  noBorrowersFound: { en: "No borrowers found", kn: "ಯಾವುದೇ ಎರವಲು ನೀಡುವವರು ಕಂಡುಬಂದಿಲ್ಲ" },
+  addItemToBorrow: { en: "Add Item to Borrow", kn: "ಎರವಲು ವಸ್ತುವನ್ನು ಸೇರಿಸಿ" },
+
 
   // ----- Staff -----
   staffSubtitle: { en: "People who deliver, install, and support your events.", kn: "ನಿಮ್ಮ ಕಾರ್ಯಕ್ರಮಗಳಿಗೆ ಸಹಾಯ ಮಾಡುವ ಸಿಬ್ಬಂದಿಗಳು." },
@@ -285,7 +303,10 @@ export const dict: Record<string, { en: string; kn: string }> = {
   sendNow: { en: "Send WhatsApp now?", kn: "ಈಗ WhatsApp ಕಳುಹಿಸುವುದೇ?" },
 
   // ----- Gallery -----
+  orderLinkSubtitle: { en: "Generate unique booking links for customers to fill their own order details.", kn: "ಗ್ರಾಹಕರು ತಮ್ಮ ಆದೇಶದ ವಿವರಗಳನ್ನು ತುಂಬಲು ವಿಶಿಷ್ಟ ಬುಕಿಂಗ್ ಲಿಂಕ್‌ಗಳನ್ನು ರಚಿಸಿ." },
+  generateLink: { en: "Generate Link", kn: "ಲಿಂಕ್ ರಚಿಸಿ" },
   gallerySubtitle: { en: "Upload, organize, and publish photos by category.", kn: "ವಿಭಾಗದ ಪ್ರಕಾರ ಫೋಟೋಗಳನ್ನು ಅಪ್‌ಲೋಡ್, ಸಂಘಟಿಸಿ ಮತ್ತು ಪ್ರಕಟಿಸಿ." },
+
   noPhotosYet: { en: "No photos yet.", kn: "ಇನ್ನೂ ಫೋಟೋಗಳಿಲ್ಲ." },
   newCategoryName: { en: "Category name (e.g. Wedding)", kn: "ವಿಭಾಗದ ಹೆಸರು (ಉದಾ. ಮದುವೆ)" },
   renameCategory: { en: "Rename category", kn: "ವಿಭಾಗ ಮರುಹೆಸರಿಸಿ" },
@@ -305,7 +326,11 @@ export const dict: Record<string, { en: string; kn: string }> = {
   pending: { en: "Pending", kn: "ಬಾಕಿ" },
   partial: { en: "Partial", kn: "ಭಾಗಶಃ" },
   unpaid: { en: "Unpaid", kn: "ಪಾವತಿಸದ" },
+  saveAsDraft: { en: "Save as Draft", kn: "ಡ್ರಾಫ್ಟ್ ಆಗಿ ಉಳಿಸಿ" },
+  resumeDraft: { en: "Resume draft", kn: "ಡ್ರಾಫ್ಟ್ ಮುಂದುವರಿಸಿ" },
+  draft: { en: "Draft", kn: "ಕರಡು" },
 };
+
 
 export const tr = (key: string, lang: Lang) =>
   dict[key]?.[lang] ?? dict[key]?.en ?? key;

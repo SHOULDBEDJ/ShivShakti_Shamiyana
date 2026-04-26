@@ -47,10 +47,15 @@ const OrderLink = () => {
   return (
     <>
       <PageHeader
-        title={t("newBooking")}
-        subtitle={t("profileSubtitle")}
-        actions={<Button onClick={create} disabled={busy} className="bg-primary hover:bg-primary/90"><Plus className="mr-2 h-4 w-4" /> {t("add")} {t("newBooking")}</Button>}
+        title={t("orderLink")}
+        subtitle={t("orderLinkSubtitle")}
+        actions={
+          <Button onClick={create} disabled={busy} className="bg-primary hover:bg-primary/90 font-bold px-6">
+            <Plus className="mr-2 h-4 w-4" /> {t("generateLink")}
+          </Button>
+        }
       />
+
 
       <Card className="p-6 mb-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
         <div className="flex items-start gap-4">

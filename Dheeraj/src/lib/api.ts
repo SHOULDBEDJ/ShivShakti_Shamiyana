@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const api = {
   // Customers
@@ -77,6 +77,11 @@ export const api = {
     return res.json();
   },
 
+  async getPayments() {
+    const res = await fetch(`${API_BASE_URL}/payments`);
+    return res.json();
+  },
+
   // Order Links & Public Orders
   async generateOrderLink() {
     const res = await fetch(`${API_BASE_URL}/order-links`, {
@@ -100,6 +105,11 @@ export const api = {
     });
     return res.json();
   },
+  async checkPublicOrderStatus(token: string) {
+    const res = await fetch(`${API_BASE_URL}/public-orders/status/${token}`);
+    return res.json();
+  },
+
 
   // Inventory: Categories
   async getCategories() {
@@ -167,9 +177,10 @@ export const api = {
 
   // Vendors
   async getVendors() {
-    const res = await fetch(`${API_BASE_URL}/vendors`);
+    const res = await fetch(`${API_BASE_URL}/vendors`, { cache: 'no-store' });
     return res.json();
   },
+
   async createVendor(data: any) {
     const res = await fetch(`${API_BASE_URL}/vendors`, {
       method: 'POST',
@@ -210,6 +221,22 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/vendors/${vendorId}/payments`);
     return res.json();
   },
+  async createManualBorrow(data: { vendor_id: number; item_name: string; item_id?: number | string; quantity: number }) {
+    const res = await fetch(`${API_BASE_URL}/vendors/borrows`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteBorrow(id: number | string) {
+    const res = await fetch(`${API_BASE_URL}/vendors/borrows/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
 
   // Settings: Function Types
   async getFunctionTypes() {
@@ -375,6 +402,104 @@ export const api = {
   },
   async getVendorBorrowsReport(vendorId: string, from: string, to: string) {
     const res = await fetch(`${API_BASE_URL}/reports/vendor-borrows?vendor_id=${vendorId}&from=${from}&to=${to}`);
+    return res.json();
+  },
+
+  // Staff (Workers)
+  async getWorkers() {
+    const res = await fetch(`${API_BASE_URL}/workers`);
+    return res.json();
+  },
+  async createWorker(data: any) {
+    const res = await fetch(`${API_BASE_URL}/workers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  async updateWorker(id: string | number, data: any) {
+    const res = await fetch(`${API_BASE_URL}/workers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  async deleteWorker(id: string | number) {
+    const res = await fetch(`${API_BASE_URL}/workers/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  // Expenses
+  async getExpenses() {
+    const res = await fetch(`${API_BASE_URL}/expenses`);
+    return res.json();
+  },
+  async createExpense(data: any) {
+    const res = await fetch(`${API_BASE_URL}/expenses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  async deleteExpense(id: string | number) {
+    const res = await fetch(`${API_BASE_URL}/expenses/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+  async getExpenseTypes() {
+    const res = await fetch(`${API_BASE_URL}/settings/expense-types`);
+    return res.json();
+  },
+  async createExpenseType(name: string) {
+    const res = await fetch(`${API_BASE_URL}/settings/expense-types`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    return res.json();
+  },
+  async updateExpenseType(id: number | string, name: string) {
+    const res = await fetch(`${API_BASE_URL}/settings/expense-types/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    return res.json();
+  },
+  async deleteExpenseType(id: number | string) {
+    const res = await fetch(`${API_BASE_URL}/settings/expense-types/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+
+  // Profile
+  async getProfile() {
+    const res = await fetch(`${API_BASE_URL}/profile`);
+    return res.json();
+  },
+  async updateProfile(data: any) {
+    const res = await fetch(`${API_BASE_URL}/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  async uploadFile(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
     return res.json();
   },
 };

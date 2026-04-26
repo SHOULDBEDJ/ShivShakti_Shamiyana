@@ -12,17 +12,19 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Bookings from "./pages/Bookings.tsx";
 import Inventory from "./pages/Inventory.tsx";
 import Expenses from "./pages/Expenses.tsx";
-import Vendors from "./pages/Vendors.tsx";
 import Reports from "./pages/Reports.tsx";
+
 import OrderLink from "./pages/OrderLink.tsx";
 import PublicOrder from "./pages/PublicOrder.tsx";
 import Settings from "./pages/Settings.tsx";
 import Profile from "./pages/Profile.tsx";
 import Income from "./pages/Income.tsx";
-import Staff from "./pages/Staff.tsx";
 import Gallery from "./pages/Gallery.tsx";
+
 import AlbumView from "./pages/AlbumView.tsx";
+import Invoice from "./pages/Invoice.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
 
 const queryClient = new QueryClient();
 
@@ -49,16 +51,18 @@ const App = () => (
               <Route path="/bookings" element={<Bookings />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/expenses" element={<Expenses />} />
-              <Route path="/vendors" element={<Vendors />} />
               <Route path="/reports" element={<Reports />} />
+
               <Route path="/order-link" element={<OrderLink />} />
               <Route path="/income" element={<Income />} />
-              <Route path="/staff" element={<Staff />} />
               <Route path="/gallery" element={<Gallery />} />
+
               <Route path="/gallery/album/:id" element={<AlbumView />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/invoice/:id" element={<Invoice />} />
             </Route>
+
 
             <Route path="*" element={<NotFound />} />
           </Routes>

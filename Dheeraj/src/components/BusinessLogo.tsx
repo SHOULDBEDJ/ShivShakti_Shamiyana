@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { Tent } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 let cachedUrl: string | null | undefined; // undefined = not loaded, null = no logo
 const subscribers: ((u: string | null) => void)[] = [];
 
 const loadLogo = async () => {
-  const { data } = await supabase.from("business_profile").select("photo_url").maybeSingle();
-  cachedUrl = (data as any)?.photo_url || null;
-  subscribers.forEach((fn) => fn(cachedUrl!));
+  try {
+    const data = await api.getProfile();
+    cachedUrl = data?.photo_url || null;
+    subscribers.forEach((fn) => fn(cachedUrl!));
+  } catch (err) {
+    cachedUrl = null;
+  }
   return cachedUrl;
 };
 

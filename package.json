@@ -2,7 +2,8 @@
   "name": "booking-app-monorepo",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd Dheeraj && npm install && npm run build"
+    "build": "npm install && cd Dheeraj && npm install && npm run build && cd ../backend && npm install",
+    "start": "cd backend && node server.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

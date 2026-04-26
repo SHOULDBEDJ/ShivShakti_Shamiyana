@@ -1,5 +1,6 @@
 import React, { useEffect, useState, forwardRef } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL } from '@/lib/api';
+
 import { useI18n } from '@/context/I18nContext';
 
 interface InvoicePreviewProps {
@@ -36,24 +37,29 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(({
   return (
     <div 
       ref={ref}
-      className="bg-white text-black p-4" 
+      className="bg-white text-black p-1 sm:p-4 shadow-xl mx-auto overflow-hidden" 
       style={{ 
-        width: '210mm', 
+        width: '100%',
+        maxWidth: '210mm', 
         minHeight: '297mm', 
+        aspectRatio: '1 / 1.414',
         fontFamily: "'Noto Sans Kannada', sans-serif",
         boxSizing: 'border-box',
-        margin: '0 auto',
       }}
+
     >
-      <div className="border border-black p-2 h-full flex flex-col">
+      <div className="border border-black p-1 sm:p-2 h-full flex flex-col">
+
         {/* Header */}
         <div className="flex items-start justify-between mb-4 border-b border-black pb-2">
-          {/* Deity Image */}
-          <div className="w-[60px] h-[60px] flex-shrink-0 border border-black flex items-center justify-center">
-            {profile.deity_image_path ? (
-              <img src={`http://localhost:5000/${profile.deity_image_path}`} alt="Deity" className="w-full h-full object-cover grayscale" />
+          {/* Logo / Deity Image */}
+          <div className="w-[80px] h-[80px] flex-shrink-0 border border-black flex items-center justify-center bg-gray-50 overflow-hidden">
+            {profile.photo_url ? (
+              <img src={profile.photo_url} alt="Logo" className="w-full h-full object-contain grayscale" />
+            ) : profile.deity_image_path ? (
+              <img src={`${API_BASE_URL.replace('/api', '')}/${profile.deity_image_path}`} alt="Deity" className="w-full h-full object-contain grayscale" />
             ) : (
-              <span className="text-[10px]">Photo</span>
+              <span className="text-[10px] text-gray-400">LOGO</span>
             )}
           </div>
 
@@ -69,8 +75,10 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(({
           </div>
 
           {/* Right Phones */}
-          <div className="text-right text-sm font-bold whitespace-nowrap pt-4 pr-2">
-            <div>{profile.phone1 || ''}</div>
+          <div className="text-right text-[13px] font-bold whitespace-nowrap pt-2 pr-1 space-y-0.5">
+            <div className="flex items-center justify-end gap-1">
+               <span className="text-[10px] font-normal">Mob:</span> {profile.phone || profile.phone1 || '9110000000'}
+            </div>
             {profile.phone2 && <div>{profile.phone2}</div>}
             {profile.phone3 && <div>{profile.phone3}</div>}
           </div>
@@ -102,12 +110,21 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(({
           <tbody>
             {rows.map((item: any, index: number) => (
               <tr key={item.item_id || index}>
-                <td className="border border-black p-1 text-center h-[28px]">{index + 1}</td>
-                <td className="border border-black p-1 px-2">{item.isBlank ? '' : item.item_name}</td>
-                <td className="border border-black p-1 text-center">{item.isBlank ? '' : item.quantity}</td>
-                <td className="border border-black p-1 text-right pr-2">{item.isBlank ? '' : item.subtotal?.toFixed(2)}</td>
+                <td className="border border-black p-0.5 text-center h-[24px] text-xs">{index + 1}</td>
+                <td className="border border-black p-0.5 px-2 text-xs">{item.isBlank ? '' : item.item_name}</td>
+                <td className="border border-black p-0.5 text-center text-xs">{item.isBlank ? '' : item.quantity}</td>
+                <td className="border border-black p-0.5 text-right pr-2 text-xs">{item.isBlank ? '' : item.subtotal?.toFixed(2)}</td>
               </tr>
             ))}
+
+            {booking.pricing_mode === 'delivery' && (Number(booking.delivery_charge) || 0) > 0 && (
+              <tr>
+                <td className="border border-black p-1" colSpan={2}></td>
+                <td className="border border-black p-1 text-center font-bold">{t("deliveryCharge")}</td>
+                <td className="border border-black p-1 text-right pr-2 font-bold">{Number(booking.delivery_charge).toFixed(2)}</td>
+              </tr>
+            )}
+
             <tr>
               <td className="border border-black p-1" colSpan={2}></td>
               <td className="border border-black p-1 text-center font-bold">{t("total")}</td>
