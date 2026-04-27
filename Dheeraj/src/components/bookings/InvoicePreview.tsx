@@ -37,16 +37,13 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(({
   return (
     <div 
       ref={ref}
-      className="bg-white text-black p-1 sm:p-4 shadow-xl mx-auto overflow-hidden" 
+      className="bg-white text-black p-4 shadow-xl mx-auto overflow-hidden" 
       style={{ 
-        width: '100%',
-        maxWidth: '210mm', 
-        minHeight: '297mm', 
-        aspectRatio: '1 / 1.414',
+        width: '800px', // Fixed width for consistent capture
+        minHeight: '1130px', // Fixed height for A4 ratio
         fontFamily: "'Noto Sans Kannada', sans-serif",
         boxSizing: 'border-box',
       }}
-
     >
       <div className="border border-black p-1 sm:p-2 h-full flex flex-col">
 

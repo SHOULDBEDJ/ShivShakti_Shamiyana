@@ -31,14 +31,21 @@ export const BookingDetails = ({ booking, onClose, onEdit, onAddPayment, onPrint
     if (!invoiceRef.current) return;
     const tId = toast.loading("Generating image...");
     try {
-      const canvas = await html2canvas(invoiceRef.current, { scale: 2, backgroundColor: "#ffffff" });
+      const canvas = await html2canvas(invoiceRef.current, { 
+        scale: 3, // Higher scale for better quality
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
       const imgData = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = imgData;
-      a.download = `invoice_${booking.booking_id}_${new Date().toISOString().slice(0, 10)}.png`;
+      a.download = `invoice_${booking.booking_id}.png`;
       a.click();
       toast.success("Invoice image downloaded.", { id: tId });
     } catch (err) {
+      console.error(err);
       toast.error("Download failed. Please try again.", { id: tId });
     }
   };
@@ -47,15 +54,21 @@ export const BookingDetails = ({ booking, onClose, onEdit, onAddPayment, onPrint
     if (!invoiceRef.current) return;
     const tId = toast.loading("Generating PDF...");
     try {
-      const canvas = await html2canvas(invoiceRef.current, { scale: 2, backgroundColor: "#ffffff" });
+      const canvas = await html2canvas(invoiceRef.current, { 
+        scale: 3, 
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        allowTaint: true
+      });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`invoice_${booking.booking_id}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`invoice_${booking.booking_id}.pdf`);
       toast.success("Invoice PDF downloaded.", { id: tId });
     } catch (err) {
+      console.error(err);
       toast.error("Download failed. Please try again.", { id: tId });
     }
   };
@@ -175,7 +188,7 @@ export const BookingDetails = ({ booking, onClose, onEdit, onAddPayment, onPrint
 
       {/* RIGHT PANEL - INVOICE PREVIEW */}
       <div className="w-full md:w-[65%] bg-zinc-100 p-2 md:p-8 overflow-x-hidden overflow-y-auto flex items-start justify-center border-t md:border-t-0">
-        <div className="shadow-2xl bg-white origin-top scale-[0.4] sm:scale-[0.6] md:scale-90 lg:scale-100 mb-[-60%] sm:mb-[-40%] md:mb-0">
+        <div className="shadow-2xl bg-white origin-top scale-[0.4] sm:scale-[0.7] md:scale-[0.8] lg:scale-100 mb-[-60%] sm:mb-[-20%] md:mb-0">
           <InvoicePreview booking={booking} ref={invoiceRef} />
         </div>
       </div>
