@@ -1412,18 +1412,25 @@ app.get('/api/profile', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/profile', upload.fields([{ name: 'photo_url', maxCount: 1 }, { name: 'deity_image', maxCount: 1 }, { name: 'static_qr', maxCount: 1 }]), async (req, res) => {
+app.put('/api/profile', upload.fields([{ name: 'photo_url', maxCount: 1 }, { name: 'deity_image', maxCount: 1 }]), async (req, res) => {
   const { business_name, name_kn, owner_name, blessing_kn, phone, phone1, phone2, phone3, address, address1_kn, address2_kn, address3_kn, upi_id, upi_name } = req.body;
-  let photo_url = req.body.photo_url, deity_image_path = req.body.deity_image_path, static_qr_path = req.body.static_qr_path;
+  let photo_url = req.body.photo_url, deity_image_path = req.body.deity_image_path;
+  
   try {
     if (req.files?.['photo_url']) photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${Date.now()}_${req.files['photo_url'][0].originalname}`;
     if (req.files?.['deity_image']) deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${Date.now()}_${req.files['deity_image'][0].originalname}`;
-    if (req.files?.['static_qr']) static_qr_path = supabase ? await uploadToSupabase(req.files['static_qr'][0], 'settings') : `/uploads/settings/${Date.now()}_${req.files['static_qr'][0].originalname}`;
+    
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
-    const sql = existing.rows.length > 0 ? `UPDATE business_profile SET business_name=?, name_kn=?, owner_name=?, blessing_kn=?, phone=?, phone1=?, phone2=?, phone3=?, address=?, address1_kn=?, address2_kn=?, address3_kn=?, photo_url=?, deity_image_path=?, upi_id=?, upi_name=?, static_qr_path=?, updated_at=CURRENT_TIMESTAMP WHERE id=1` : `INSERT INTO business_profile (id, business_name, name_kn, owner_name, blessing_kn, phone, phone1, phone2, phone3, address, address1_kn, address2_kn, address3_kn, photo_url, deity_image_path, upi_id, upi_name, static_qr_path) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-    await db.execute({ sql, args: [business_name, name_kn, owner_name, blessing_kn, phone, phone1, phone2, phone3, address, address1_kn, address2_kn, address3_kn, photo_url, deity_image_path, upi_id, upi_name, static_qr_path] });
+    const sql = existing.rows.length > 0 
+      ? `UPDATE business_profile SET business_name=?, name_kn=?, owner_name=?, blessing_kn=?, phone=?, phone1=?, phone2=?, phone3=?, address=?, address1_kn=?, address2_kn=?, address3_kn=?, photo_url=?, deity_image_path=?, upi_id=?, upi_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=1` 
+      : `INSERT INTO business_profile (id, business_name, name_kn, owner_name, blessing_kn, phone, phone1, phone2, phone3, address, address1_kn, address2_kn, address3_kn, photo_url, deity_image_path, upi_id, upi_name) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+    
+    await db.execute({ sql, args: [business_name, name_kn, owner_name, blessing_kn, phone, phone1, phone2, phone3, address, address1_kn, address2_kn, address3_kn, photo_url, deity_image_path, upi_id, upi_name] });
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error("Profile update error:", err);
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 
@@ -1529,10 +1536,22 @@ app.post('/api/public-orders/:token', async (req, res) => {
 });
 
 // --- UPLOAD ---
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-  res.json({ url });
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
+    let url;
+    if (supabase) {
+      url = await uploadToSupabase(req.file, 'settings'); // Using 'settings' bucket for profile/general uploads
+    } else {
+      url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+    
+    res.json({ url });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- GLOBAL ERROR HANDLER ---

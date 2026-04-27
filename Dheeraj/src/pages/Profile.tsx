@@ -22,19 +22,13 @@ const Profile = () => {
     address1_kn: "", upi_id: "", upi_name: "", photo_url: ""
   });
   const [busy, setBusy] = useState(false);
-  const [qrFile, setQrFile] = useState<File | null>(null);
-  const [qrPreview, setQrPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const qrRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     try {
       const data = await api.getBusinessProfile();
       if (data) {
         setProfile(data);
-        if (data.static_qr_path) {
-          setQrPreview(`${API_BASE_URL.replace('/api', '')}/${data.static_qr_path}`);
-        }
       }
     } catch (err: any) {
       console.error(err);
@@ -42,13 +36,6 @@ const Profile = () => {
   };
   useEffect(() => { load(); }, []);
 
-  const handleQrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setQrFile(file);
-      setQrPreview(URL.createObjectURL(file));
-    }
-  };
 
   const save = async () => {
     setBusy(true);
@@ -59,9 +46,6 @@ const Profile = () => {
           formData.append(key, profile[key]);
         }
       });
-      if (qrFile) {
-        formData.append("static_qr_image", qrFile);
-      }
       
       await api.updateBusinessProfile(formData);
       toast.success(t("profileSaved"));
@@ -111,20 +95,6 @@ const Profile = () => {
             </div>
           </div>
 
-          <div className="text-center space-y-4 w-full">
-            <Label className="text-xs uppercase tracking-widest text-muted-foreground">Static Payment QR</Label>
-            <div className="aspect-square w-full max-w-[200px] mx-auto border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-background/50 hover:bg-background transition-colors cursor-pointer relative group overflow-hidden" onClick={() => qrRef.current?.click()}>
-              {qrPreview ? (
-                <img src={qrPreview} alt="QR" className="w-full h-full object-cover" />
-              ) : (
-                <>
-                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-xs text-muted-foreground">Upload Static QR</span>
-                </>
-              )}
-              <input ref={qrRef} type="file" accept="image/*" className="hidden" onChange={handleQrChange} />
-            </div>
-          </div>
         </Card>
 
         {/* Right Column: Details */}
