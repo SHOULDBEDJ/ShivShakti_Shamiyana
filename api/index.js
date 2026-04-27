@@ -563,8 +563,9 @@ app.get('/api/order-links', async (req, res) => {
   }
 });
 
-app.get('/api/public/validate-link', async (req, res) => {
-  const { token } = req.query;
+// Public Order Validation (New style for frontend)
+app.get('/api/public-orders/validate/:token', async (req, res) => {
+  const { token } = req.params;
   try {
     const result = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
     const link = result.rows[0];
@@ -578,22 +579,31 @@ app.get('/api/public/validate-link', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/public/submit-public-order', async (req, res) => {
+// Legacy support for validate-link
+app.get('/api/public/validate-link', async (req, res) => {
   const { token } = req.query;
-  const { customer_name, phone_number, place, pricing_mode, delivery_takeaway_date, items, total_amount } = req.body;
+  try {
+    const result = await db.execute({ sql: 'SELECT * FROM order_links WHERE token = ? AND status = "active"', args: [token] });
+    const link = result.rows[0];
+    if (!link) return res.json({ valid: false });
+    res.json({ valid: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Submit Public Order (New style for frontend)
+app.post('/api/public-orders/:token', async (req, res) => {
+  const { token } = req.params;
+  const { customer_name, phone_number, place, pricing_mode, delivery_takeaway_date, items, total_amount, function_type } = req.body;
   
   try {
-    // 1. Verify token
     const linkRes = await db.execute({ sql: 'SELECT id FROM order_links WHERE token = ? AND status = "active"', args: [token] });
     if (linkRes.rows.length === 0) return res.status(401).json({ error: 'Invalid or expired link' });
 
     const tx = await db.transaction('write');
     try {
-      // 2. Generate IDs
       const booking_id = `REQ-${Date.now().toString().slice(-6)}`;
       const customer_id = `CUST-${phone_number.slice(-4)}-${Date.now().toString().slice(-4)}`;
 
-      // 3. Upsert Customer
       const custRes = await tx.execute({ sql: 'SELECT customer_id FROM customers WHERE phone = ?', args: [phone_number] });
       let finalCustId = customer_id;
       if (custRes.rows.length > 0) {
@@ -605,28 +615,27 @@ app.post('/api/public/submit-public-order', async (req, res) => {
         });
       }
 
-      // 4. Create Booking (status: pending_request)
       await tx.execute({
         sql: `INSERT INTO bookings (
-          booking_id, customer_id, pricing_mode, delivery_takeaway_date, place, 
+          booking_id, customer_id, pricing_mode, delivery_takeaway_date, place, function_type,
           total_amount, pending_amount, order_status, payment_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
-          booking_id, finalCustId, pricing_mode, delivery_takeaway_date, place,
+          booking_id, finalCustId, pricing_mode, delivery_takeaway_date, place, function_type,
           total_amount, total_amount, 'pending_request', 'pending'
         ]
       });
 
-      // 5. Add Items
-      for (const it of items) {
+      const parsedItems = Array.isArray(items) ? items : JSON.parse(items || '[]');
+      for (const it of parsedItems) {
         await tx.execute({
           sql: 'INSERT INTO booking_items (booking_id, item_id, item_name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)',
           args: [booking_id, it.item_id, it.item_name, it.quantity, it.unit_price, it.subtotal]
         });
       }
 
-      // 6. Invalidate Link
-      await tx.execute({ sql: 'UPDATE order_links SET status = "used" WHERE token = ?', args: [token] });
+      // Update link with booking_id and mark as used
+      await tx.execute({ sql: 'UPDATE order_links SET status = "used", booking_id = ? WHERE token = ?', args: [booking_id, token] });
 
       await tx.commit();
       res.json({ success: true, booking_id });
@@ -634,6 +643,25 @@ app.post('/api/public/submit-public-order', async (req, res) => {
       await tx.rollback();
       throw err;
     }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Check Order Status by Token
+app.get('/api/public-orders/status/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    const linkRes = await db.execute({ sql: 'SELECT booking_id FROM order_links WHERE token = ?', args: [token] });
+    const link = linkRes.rows[0];
+    if (!link || !link.booking_id) return res.json({ found: false });
+
+    const bookingResult = await db.execute({
+      sql: 'SELECT * FROM bookings WHERE booking_id = ?',
+      args: [link.booking_id]
+    });
+    const booking = bookingResult.rows[0];
+    if (!booking) return res.json({ found: false });
+
+    res.json({ found: true, booking });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

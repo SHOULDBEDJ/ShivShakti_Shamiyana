@@ -127,6 +127,7 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS order_links (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       token TEXT UNIQUE NOT NULL,
+      booking_id TEXT,
       status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       expires_at DATETIME
@@ -265,6 +266,7 @@ async function initDB() {
   try { await db.execute('ALTER TABLE business_profile ADD COLUMN upi_id TEXT'); } catch(e) {}
   try { await db.execute('ALTER TABLE business_profile ADD COLUMN upi_name TEXT'); } catch(e) {}
   try { await db.execute('ALTER TABLE business_profile ADD COLUMN static_qr_path TEXT'); } catch(e) {}
+  try { await db.execute('ALTER TABLE order_links ADD COLUMN booking_id TEXT'); } catch(e) {}
 
   // Seed default function types
   const functionsCount = await db.execute('SELECT COUNT(*) as count FROM function_types');
