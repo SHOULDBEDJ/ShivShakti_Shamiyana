@@ -9,7 +9,7 @@ import { useI18n } from "@/context/I18nContext";
 import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BusinessLogo } from "@/components/BusinessLogo";
+import { BusinessLogo, BusinessName } from "@/components/BusinessLogo";
 import { ModuleKey } from "@/lib/permissions";
 
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -45,12 +45,9 @@ const SidebarContent = ({
 }) => (
   <>
     <div className="flex items-center gap-3 px-6 py-6 border-b border-sidebar-border">
-      <BusinessLogo size={44} />
-      <div className="min-w-0">
-        <div className="font-display text-lg leading-tight truncate">ShivaShakti</div>
-        <div className="text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/60">
-          Shamiyana
-        </div>
+      <BusinessLogo size={48} />
+      <div className="min-w-0 flex-1">
+        <BusinessName defaultName="ShivaShakti" />
       </div>
     </div>
     <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">

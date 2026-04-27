@@ -52,3 +52,22 @@ export const BusinessLogo = ({ size = 40, className }: { size?: number; classNam
     </div>
   );
 };
+
+export const BusinessName = ({ defaultName = "ShivaShakti" }: { defaultName?: string }) => {
+  const [profile, setProfile] = useState<any>(null);
+  
+  useEffect(() => {
+    api.getProfile().then(setProfile).catch(() => {});
+  }, []);
+
+  return (
+    <div className="min-w-0">
+      <div className="font-display text-lg leading-tight truncate">
+        {profile?.business_name || defaultName}
+      </div>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/60 truncate">
+        {profile?.name_kn || "Shamiyana"}
+      </div>
+    </div>
+  );
+};
