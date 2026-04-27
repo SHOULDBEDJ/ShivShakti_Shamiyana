@@ -57,6 +57,80 @@ if (isVercel) {
   app.use('/uploads', express.static('/tmp/uploads'));
 }
 
+// --- PROFILE ROUTES (Moved to top for priority) ---
+app.get('/api/profile', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/settings/business-profile', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put(['/api/profile', '/api/settings/business-profile'], settingsUpload.fields([
+  { name: 'photo_url', maxCount: 1 },
+  { name: 'deity_image', maxCount: 1 }
+]), async (req, res) => {
+  console.log("Profile update request received on:", req.url);
+  const { 
+    business_name, name_kn, owner_name, blessing_kn, 
+    phone, phone1, phone2, phone3, 
+    address, address1_kn, address2_kn, address3_kn, 
+    upi_id, upi_name 
+  } = req.body;
+
+  let photo_url = req.body.photo_url;
+  let deity_image_path = req.body.deity_image_path;
+
+  try {
+    if (req.files?.['photo_url']) {
+      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
+    }
+    if (req.files?.['deity_image']) {
+      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
+    }
+    const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
+    if (existing.rows.length > 0) {
+      await db.execute({
+        sql: `UPDATE business_profile SET 
+                business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
+                phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
+                address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
+                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?,
+                updated_at = CURRENT_TIMESTAMP 
+              WHERE id = 1`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name
+        ]
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO business_profile (
+                id, business_name, name_kn, owner_name, blessing_kn, 
+                phone, phone1, phone2, phone3, 
+                address, address1_kn, address2_kn, address3_kn, 
+                photo_url, deity_image_path, upi_id, upi_name
+              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          business_name, name_kn, owner_name, blessing_kn, 
+          phone, phone1, phone2, phone3, 
+          address, address1_kn, address2_kn, address3_kn, 
+          photo_url, deity_image_path, upi_id, upi_name
+        ]
+      });
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Multer setup for voice notes
 const voiceStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -1456,144 +1530,6 @@ app.post('/api/settings/expense-types', async (req, res) => {
 });
 
 // --- BUSINESS PROFILE ---
-app.get('/api/profile', async (req, res) => {
-  try {
-    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
-    res.json(result.rows[0] || {});
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Alias for frontend compatibility
-app.get('/api/settings/business-profile', async (req, res) => {
-  try {
-    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
-    res.json(result.rows[0] || {});
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.put('/api/profile', settingsUpload.fields([
-  { name: 'photo_url', maxCount: 1 },
-  { name: 'deity_image', maxCount: 1 }
-]), async (req, res) => {
-  console.log("Profile update request received");
-  if (!supabase) {
-    console.warn("Supabase client not initialized. Check your environment variables.");
-  }
-  
-  const { 
-    business_name, name_kn, owner_name, blessing_kn, 
-    phone, phone1, phone2, phone3, 
-    address, address1_kn, address2_kn, address3_kn, 
-    upi_id, upi_name 
-  } = req.body;
-
-  let photo_url = req.body.photo_url;
-  let deity_image_path = req.body.deity_image_path;
-
-  try {
-    if (req.files?.['photo_url']) {
-      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
-    }
-    if (req.files?.['deity_image']) {
-      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
-    }
-    const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
-    if (existing.rows.length > 0) {
-      await db.execute({
-        sql: `UPDATE business_profile SET 
-                business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
-                phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
-                address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
-                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?,
-                updated_at = CURRENT_TIMESTAMP 
-              WHERE id = 1`,
-        args: [
-          business_name, name_kn, owner_name, blessing_kn, 
-          phone, phone1, phone2, phone3, 
-          address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name
-        ]
-      });
-    } else {
-      await db.execute({
-        sql: `INSERT INTO business_profile (
-                id, business_name, name_kn, owner_name, blessing_kn, 
-                phone, phone1, phone2, phone3, 
-                address, address1_kn, address2_kn, address3_kn, 
-                photo_url, deity_image_path, upi_id, upi_name
-              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          business_name, name_kn, owner_name, blessing_kn, 
-          phone, phone1, phone2, phone3, 
-          address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name
-        ]
-      });
-    }
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Alias for frontend compatibility (POST version just in case)
-app.post('/api/settings/business-profile', settingsUpload.fields([
-  { name: 'photo_url', maxCount: 1 },
-  { name: 'deity_image', maxCount: 1 }
-]), async (req, res) => {
-  // Same logic as /api/profile put
-  const { 
-    business_name, name_kn, owner_name, blessing_kn, 
-    phone, phone1, phone2, phone3, 
-    address, address1_kn, address2_kn, address3_kn, 
-    upi_id, upi_name 
-  } = req.body;
-
-  let photo_url = req.body.photo_url;
-  let deity_image_path = req.body.deity_image_path;
-
-  try {
-    if (req.files?.['photo_url']) {
-      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
-    }
-    if (req.files?.['deity_image']) {
-      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
-    }
-    const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
-    if (existing.rows.length > 0) {
-      await db.execute({
-        sql: `UPDATE business_profile SET 
-                business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
-                phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
-                address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
-                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?,
-                updated_at = CURRENT_TIMESTAMP 
-              WHERE id = 1`,
-        args: [
-          business_name, name_kn, owner_name, blessing_kn, 
-          phone, phone1, phone2, phone3, 
-          address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name
-        ]
-      });
-    } else {
-      await db.execute({
-        sql: `INSERT INTO business_profile (
-                id, business_name, name_kn, owner_name, blessing_kn, 
-                phone, phone1, phone2, phone3, 
-                address, address1_kn, address2_kn, address3_kn, 
-                photo_url, deity_image_path, upi_id, upi_name
-              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          business_name, name_kn, owner_name, blessing_kn, 
-          phone, phone1, phone2, phone3, 
-          address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name
-        ]
-      });
-    }
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // --- UPLOAD ---
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
