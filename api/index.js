@@ -51,28 +51,30 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Logger to debug Vercel routing
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 // Static files (with fallback for Vercel)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 if (isVercel) {
   app.use('/uploads', express.static('/tmp/uploads'));
 }
 
-// --- PROFILE ROUTES (Moved to top for priority) ---
-app.get('/api/profile', async (req, res) => {
+app.get('/api/ping', (req, res) => res.json({ pong: true, time: new Date().toISOString(), url: req.url }));
+app.get('/ping', (req, res) => res.json({ pong: true, time: new Date().toISOString(), url: req.url }));
+
+// --- PROFILE ROUTES ---
+app.get(['/api/profile', '/profile', '/api/settings/business-profile', '/settings/business-profile'], async (req, res) => {
   try {
     const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
     res.json(result.rows[0] || {});
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/settings/business-profile', async (req, res) => {
-  try {
-    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
-    res.json(result.rows[0] || {});
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.put(['/api/profile', '/api/settings/business-profile'], settingsUpload.fields([
+app.put(['/api/profile', '/profile', '/api/settings/business-profile', '/settings/business-profile'], settingsUpload.fields([
   { name: 'photo_url', maxCount: 1 },
   { name: 'deity_image', maxCount: 1 }
 ]), async (req, res) => {
