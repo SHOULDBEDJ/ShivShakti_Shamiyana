@@ -2,7 +2,7 @@
   "name": "booking-app-monorepo",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd Dheeraj && npm install && npm run build && cd .. && rm -rf public && mkdir public && cp -r Dheeraj/dist/* public/",
+    "build": "cd Dheeraj && npm install && npm run build && cd .. && rm -rf public && cp -r Dheeraj/dist public",
     "start": "cd backend && node server.js"
   },
   "dependencies": {
