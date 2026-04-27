@@ -148,6 +148,7 @@ export const AppLayout = () => {
 
       <InstallPrompt />
       <OfflineStatus />
+      <div className="fixed bottom-1 right-1 text-[10px] text-muted-foreground/30 pointer-events-none select-none">v1.2.9_FinalFix</div>
     </div>
   );
 };
