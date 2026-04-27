@@ -332,8 +332,16 @@ app.put('/api/bookings/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   try {
+    // Also ensure pending_amount is set correctly if it was somehow 0 (e.g. from a public order)
     await db.execute({
-      sql: 'UPDATE bookings SET order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE booking_id = ?',
+      sql: `UPDATE bookings 
+            SET order_status = ?, 
+                pending_amount = CASE 
+                  WHEN pending_amount = 0 THEN total_amount - advance_amount - discount_amount 
+                  ELSE pending_amount 
+                END,
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE booking_id = ?`,
       args: [status, id]
     });
     res.json({ message: 'Status updated' });
@@ -1502,10 +1510,10 @@ app.post('/api/public-orders/:token', async (req, res) => {
     const booking_id = 'T' + Math.floor(100000 + Math.random() * 900000);
     await db.execute({
       sql: `INSERT INTO bookings (
-              booking_id, customer_id, pricing_mode, total_amount, order_status, 
+              booking_id, customer_id, pricing_mode, total_amount, pending_amount, order_status, 
               delivery_takeaway_date, place, function_type, voice_note_path
-            ) VALUES (?, ?, ?, ?, 'pending_request', ?, ?, ?, ?)`,
-      args: [booking_id, customer_id, pricing_mode, total_amount, delivery_takeaway_date, place, function_type, `token:${token}`]
+            ) VALUES (?, ?, ?, ?, ?, 'pending_request', ?, ?, ?, ?)`,
+      args: [booking_id, customer_id, pricing_mode, total_amount, total_amount, delivery_takeaway_date, place, function_type, `token:${token}`]
     });
 
 
