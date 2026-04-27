@@ -17,7 +17,6 @@ import autoTable from "jspdf-autotable";
 import { useI18n } from "@/context/I18nContext";
 
 const TABS = [
-  "monthlyIncome",
   "dailyBookings",
   "pendingPayments",
   "bookingStatus",
@@ -71,9 +70,7 @@ const Reports = () => {
     setLoading(true);
     try {
       let res;
-      if (activeTab === "monthlyIncome") {
-        res = await api.getMonthlyReport(month, year);
-      } else if (activeTab === "dailyBookings") {
+      if (activeTab === "dailyBookings") {
         res = await api.getDailyReport(date);
       } else if (activeTab === "pendingPayments") {
         res = await api.getPendingPaymentsReport();
@@ -110,26 +107,6 @@ const Reports = () => {
 
   const renderFilters = () => {
     switch (activeTab) {
-      case "monthlyIncome":
-        return (
-          <div className="flex gap-4 items-end">
-            <div className="space-y-1">
-              <Label>{t("month")}</Label>
-              <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({length: 12}).map((_, i) => (
-                    <SelectItem key={i} value={(i+1).toString().padStart(2, '0')}>{(i+1).toString().padStart(2, '0')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>{t("year")}</Label>
-              <Input value={year} onChange={e => setYear(e.target.value)} className="w-32" />
-            </div>
-          </div>
-        );
       case "dailyBookings":
         return (
           <div className="space-y-1">
@@ -183,7 +160,7 @@ const Reports = () => {
     if (loading) return <div className="py-12 text-center text-muted-foreground">{t("loading")}</div>;
     if (data.length === 0) return <div className="py-12 text-center text-muted-foreground">{t("noBookingsMatch")}</div>;
 
-    if (activeTab === "monthlyIncome" || activeTab === "dailyBookings") {
+    if (activeTab === "dailyBookings") {
       const gross = data.reduce((sum, r) => sum + (r.total_amount || 0), 0);
       const collected = data.reduce((sum, r) => sum + (r.advance_amount || 0), 0);
       const pending = data.reduce((sum, r) => sum + (r.pending_amount || 0), 0);

@@ -21,7 +21,6 @@ const navItems: NavItem[] = [
   { to: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { to: "/bookings", key: "bookings", icon: CalendarCheck2 },
   { to: "/inventory", key: "inventory", icon: Boxes },
-  { to: "/income", key: "income", icon: IndianRupee },
   { to: "/expenses", key: "expenses", icon: Wallet },
 
 

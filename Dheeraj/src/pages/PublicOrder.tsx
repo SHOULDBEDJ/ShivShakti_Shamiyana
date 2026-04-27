@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, ArrowRight, ShieldCheck, Plus, Minus, Search, ShoppingBag, ClipboardList, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, ArrowRight, Plus, Minus, Search, ShoppingBag, ClipboardList, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { fmtINR } from "@/lib/format";
 import { toast } from "sonner";
 import { useI18n } from "@/context/I18nContext";
@@ -33,9 +33,7 @@ const PublicOrder = () => {
   const [functionType, setFunctionType] = useState("");
 
   // Flow State
-  const [step, setStep] = useState<'welcome' | 'form' | 'otp' | 'success' | 'status'>('welcome');
-  const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
+  const [step, setStep] = useState<'welcome' | 'form' | 'success' | 'status'>('welcome');
   const [tokenNumber, setTokenNumber] = useState("");
   const [orderStatus, setOrderStatus] = useState<any>(null);
 
@@ -113,19 +111,9 @@ const PublicOrder = () => {
     });
   };
 
-  const handleSendRequest = () => {
+  const handleSendRequest = async () => {
     if (!name || !phone || !address || !functionType) return toast.error("Please fill all details");
     if (cartItems.length === 0) return toast.error("Please select at least one item");
-    
-    // Simulate OTP
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    setGeneratedOtp(code);
-    setStep('otp');
-    toast.success(`OTP for testing: ${code}`);
-  };
-
-  const verifyAndSubmit = async () => {
-    if (otp !== generatedOtp) return toast.error("Invalid OTP");
     
     setLoading(true);
     try {
@@ -141,6 +129,7 @@ const PublicOrder = () => {
       });
       setTokenNumber(res.booking_id);
       setStep('success');
+      toast.success("Order submitted successfully!");
     } catch (err) {
       toast.error("Failed to submit request");
     } finally {
@@ -226,30 +215,6 @@ const PublicOrder = () => {
     );
   }
 
-  if (step === 'otp') {
-    return (
-      <div className="min-h-screen bg-background p-6 flex flex-col justify-center max-w-md mx-auto space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex justify-center"><ShieldCheck className="h-16 w-16 text-primary" /></div>
-          <h2 className="text-2xl font-bold uppercase tracking-tight">Verify Your Mobile</h2>
-          <p className="text-sm text-muted-foreground">OTP sent to <strong>{phone}</strong></p>
-        </div>
-        <div className="space-y-4">
-          <Input 
-            placeholder="0000" 
-            className="text-center text-4xl font-bold tracking-[1rem] h-20 bg-muted/30 border-2 focus:border-primary" 
-            maxLength={4} 
-            value={otp} 
-            onChange={e => setOtp(e.target.value)} 
-          />
-          <Button onClick={verifyAndSubmit} className="w-full h-14 text-lg font-bold uppercase" disabled={loading}>
-            {loading ? 'Verifying...' : 'Submit Request'}
-          </Button>
-          <Button variant="ghost" onClick={() => setStep('form')} className="w-full text-muted-foreground">Change Phone Number</Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#faf8f6]">

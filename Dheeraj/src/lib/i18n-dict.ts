@@ -213,9 +213,7 @@ export const dict: Record<string, { en: string; kn: string }> = {
 
   // ----- Expenses & Income -----
   expensesSubtitle: { en: "Track every rupee that leaves the business.", kn: "ವ್ಯಾಪಾರದಿಂದ ಹೊರಹೋಗುವ ಪ್ರತಿ ರೂಪಾಯಿಯನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ." },
-  incomeSubtitle: { en: "Log additional business income beyond bookings.", kn: "ಬುಕಿಂಗ್ ಹೊರತುಪಡಿಸಿ ಹೆಚ್ಚುವರಿ ವ್ಯಾಪಾರ ಆದಾಯವನ್ನು ದಾಖಲಿಸಿ." },
   newExpense: { en: "New expense", kn: "ಹೊಸ ವೆಚ್ಚ" },
-  newIncome: { en: "New income", kn: "ಹೊಸ ಆದಾಯ" },
   filteredTotal: { en: "Filtered total", kn: "ಫಿಲ್ಟರ್ ಮಾಡಿದ ಒಟ್ಟು" },
   thisMonth: { en: "This month", kn: "ಈ ತಿಂಗಳು" },
   allTimeRecords: { en: "All-time records", kn: "ಎಲ್ಲಾ ಸಮಯದ ದಾಖಲೆಗಳು" },
@@ -224,7 +222,6 @@ export const dict: Record<string, { en: string; kn: string }> = {
   type: { en: "Type", kn: "ಪ್ರಕಾರ" },
   allTypes: { en: "All types", kn: "ಎಲ್ಲಾ ಪ್ರಕಾರಗಳು" },
   noExpensesMatch: { en: "No expenses match.", kn: "ಯಾವುದೇ ವೆಚ್ಚಗಳು ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ." },
-  noIncomeMatch: { en: "No income match.", kn: "ಯಾವುದೇ ಆದಾಯ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ." },
   bankTransfer: { en: "Bank Transfer", kn: "ಬ್ಯಾಂಕ್ ವರ್ಗಾವಣೆ" },
   card: { en: "Card", kn: "ಕಾರ್ಡ್" },
   other: { en: "Other", kn: "ಇತರೆ" },
@@ -249,7 +246,6 @@ export const dict: Record<string, { en: string; kn: string }> = {
   // ----- Reports -----
   reportsTitle: { en: "Reports & Downloads", kn: "ವರದಿಗಳು ಮತ್ತು ಡೌನ್‌ಲೋಡ್‌ಗಳು" },
   reportsSubtitle: { en: "View and export business metrics and summaries.", kn: "ವ್ಯಾಪಾರದ ಮೆಟ್ರಿಕ್‌ಗಳು ಮತ್ತು ಸಾರಾಂಶಗಳನ್ನು ನೋಡಿ ಮತ್ತು ಎಕ್ಸ್‌ಪೋರ್ಟ್ ಮಾಡಿ." },
-  monthlyIncome: { en: "Monthly Income", kn: "ಮಾಸಿಕ ಆದಾಯ" },
   dailyBookings: { en: "Daily Bookings", kn: "ದೈನಂದಿನ ಬುಕಿಂಗ್‌ಗಳು" },
   pendingPayments: { en: "Pending Payments", kn: "ಬಾಕಿ ಇರುವ ಪಾವತಿಗಳು" },
   bookingStatus: { en: "Booking Status", kn: "ಬುಕಿಂಗ್ ಸ್ಥಿತಿ" },

@@ -2,7 +2,6 @@ export type ModuleKey =
   | "dashboard"
   | "bookings"
   | "inventory"
-  | "income"
   | "expenses"
   | "staff"
   | "vendors"
@@ -18,7 +17,6 @@ export const ALL_MODULES: { key: ModuleKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
   { key: "bookings", label: "Bookings" },
   { key: "inventory", label: "Inventory" },
-  { key: "income", label: "Income" },
   { key: "expenses", label: "Expenses" },
   { key: "staff", label: "Staff" },
   { key: "vendors", label: "Vendors" },

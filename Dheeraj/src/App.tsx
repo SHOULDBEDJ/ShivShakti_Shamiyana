@@ -18,7 +18,6 @@ import OrderLink from "./pages/OrderLink.tsx";
 import PublicOrder from "./pages/PublicOrder.tsx";
 import Settings from "./pages/Settings.tsx";
 import Profile from "./pages/Profile.tsx";
-import Income from "./pages/Income.tsx";
 import Gallery from "./pages/Gallery.tsx";
 
 import AlbumView from "./pages/AlbumView.tsx";
@@ -54,7 +53,6 @@ const App = () => (
               <Route path="/reports" element={<Reports />} />
 
               <Route path="/order-link" element={<OrderLink />} />
-              <Route path="/income" element={<Income />} />
               <Route path="/gallery" element={<Gallery />} />
 
               <Route path="/gallery/album/:id" element={<AlbumView />} />

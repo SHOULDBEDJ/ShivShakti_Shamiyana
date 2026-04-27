@@ -217,7 +217,7 @@ export const ReturnForm = ({ booking, onClose, onComplete }: ReturnFormProps) =>
                   <Input type="number" value={discountAmount || ""} onChange={e => setDiscountAmount(Number(e.target.value))} placeholder="₹ 0" />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("today")} {t("income")}</Label>
+                  <Label>{t("today")} {t("payment")}</Label>
                   <Input type="number" value={paymentAmount || ""} onChange={e => setPaymentAmount(Number(e.target.value))} placeholder={fmtINR(finalPayable)} />
                 </div>
                 <div className="flex gap-2 pt-2">
