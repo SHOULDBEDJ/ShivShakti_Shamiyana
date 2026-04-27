@@ -377,12 +377,12 @@ export const api = {
 
   // Business Profile
   async getBusinessProfile() {
-    const res = await fetch(`${API_BASE_URL}/settings/business-profile`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE_URL}/profile`, { cache: 'no-store' });
     return res.json();
   },
   async updateBusinessProfile(formData: FormData) {
-    const res = await fetch(`${API_BASE_URL}/settings/business-profile`, {
-      method: 'POST',
+    const res = await fetch(`${API_BASE_URL}/profile`, {
+      method: 'PUT',
       body: formData,
     });
     if (!res.ok) {
