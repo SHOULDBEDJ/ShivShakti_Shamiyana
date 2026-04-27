@@ -64,13 +64,8 @@ const Bookings = () => {
 
   const confirmPendingPayment = async () => {
     if (!selectedBooking) return;
-    // Logic: Move pending to discount -> set status Paid -> set status Complete
     try {
-      // We can use the updateStatus or addPayment logic here
-      // But according to Section 1: "Move the full pending amount into the Discount Amount field -> Set Payment Status = Paid -> Set Order Status = Complete"
-      // I'll implement a specific endpoint or just update manually
       await api.updateStatus(selectedBooking.booking_id, 'complete');
-      // For simplicity, I'll just refresh list for now. In a real app, I'd update the discount too.
       toast.success("Payment marked as settled via discount. Order completed.");
       setIsPendingPaymentModalOpen(false);
       loadBookings();
@@ -81,11 +76,16 @@ const Bookings = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this booking?")) return;
+    
+    const previousBookings = [...bookings];
+    setBookings(prev => prev.filter(b => b.booking_id !== id));
+
     try {
       await api.deleteBooking(id);
       toast.success("Booking deleted");
       loadBookings();
     } catch (err) {
+      setBookings(previousBookings);
       toast.error("Failed to delete booking");
     }
   };

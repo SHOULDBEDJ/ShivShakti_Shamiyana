@@ -47,11 +47,16 @@ const Expenses = () => {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this expense?")) return;
+    
+    const previousList = [...list];
+    setList(prev => prev.filter(e => e.id !== id));
+
     try {
       await api.deleteExpense(id);
       toast.success("Expense deleted");
       load();
     } catch (err: any) {
+      setList(previousList);
       toast.error(err.message);
     }
   };
@@ -220,11 +225,16 @@ const ExpenseTypesDialog = ({ onClose }: any) => {
 
   const remove = async (id: number) => {
     if (!confirm("Delete this expense type?")) return;
+    
+    const previousList = [...list];
+    setList(prev => prev.filter(tp => tp.id !== id));
+
     try {
       await api.deleteExpenseType(id);
       load();
       onClose();
     } catch (err: any) {
+      setList(previousList);
       toast.error(err.message);
     }
   };
@@ -264,4 +274,3 @@ const ExpenseTypesDialog = ({ onClose }: any) => {
 };
 
 export default Expenses;
-

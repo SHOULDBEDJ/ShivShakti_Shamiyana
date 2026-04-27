@@ -634,11 +634,11 @@ export const BookingForm = ({ initialData, onClose, onSave }: BookingFormProps) 
             <div className="flex justify-center">
               <div className="p-4 bg-white rounded-xl shadow-sm text-center space-y-2">
                 <QRCodeSVG 
-                  value={`upi://pay?pa=9113565802.wa.8p7@waaxis&pn=${encodeURIComponent(businessProfile?.upi_name || 'Business')}&am=${totalAmount}&cu=INR`} 
+                  value={`upi://pay?pa=${businessProfile?.upi_id || '9113565802.wa.8p7@waaxis'}&pn=${encodeURIComponent(businessProfile?.upi_name || 'Business')}&am=${pendingAmount}&cu=INR`} 
                   size={200} 
                 />
-                <div className="text-sm font-bold text-black mt-2">Scan to pay Total: {fmtINR(totalAmount)}</div>
-                <div className="text-[10px] text-muted-foreground">UPI ID: 9113565802.wa.8p7@waaxis</div>
+                <div className="text-sm font-bold text-black mt-2">Scan to pay Due: {fmtINR(pendingAmount)}</div>
+                <div className="text-[10px] text-muted-foreground">UPI ID: {businessProfile?.upi_id || '9113565802.wa.8p7@waaxis'}</div>
               </div>
             </div>
           </div>

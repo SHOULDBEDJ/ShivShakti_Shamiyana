@@ -266,7 +266,7 @@ const PublicOrder = () => {
         <p className="opacity-70 text-sm font-medium tracking-wide">SHIVA SHAKTI SHAMIYANA</p>
       </header>
 
-      <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-10 pb-32">
+      <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-10 pb-20">
         {/* Step 1: Customer Info */}
         <section className="space-y-6 bg-white p-8 rounded-3xl border shadow-sm">
           <div className="flex items-center gap-3 border-b pb-4">
@@ -370,22 +370,54 @@ const PublicOrder = () => {
              </div>
           </div>
         </section>
+
+        {/* Step 4: Review & Send */}
+        {cartItems.length > 0 && (
+          <section className="space-y-6 bg-white p-8 rounded-3xl border-2 border-primary/20 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-3 bg-primary/5 text-primary">
+              <ShoppingBag className="h-6 w-6 opacity-20" />
+            </div>
+            <div className="flex items-center gap-3 border-b pb-4">
+              <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-bold">4</div>
+              <h3 className="font-bold text-lg uppercase tracking-tight">Review & Send Request</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-2">
+                {cartItems.map((it: any) => (
+                  <div key={it.item_id} className="flex justify-between items-center p-3 bg-muted/20 rounded-xl border border-dashed">
+                    <div>
+                      <div className="font-bold text-sm uppercase">{it.item_name}</div>
+                      <div className="text-[10px] text-muted-foreground font-medium">
+                        {it.quantity} x {fmtINR(it.unit_price)}
+                      </div>
+                    </div>
+                    <div className="font-bold text-primary">{fmtINR(it.subtotal)}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-6 mt-6 border-t-2 border-dashed flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="text-center md:text-left">
+                  <div className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Total Estimate</div>
+                  <div className="text-4xl font-black text-primary">{fmtINR(total)}</div>
+                </div>
+                <Button 
+                  onClick={handleSendRequest} 
+                  size="lg" 
+                  className="w-full md:w-auto h-16 px-12 text-xl font-black uppercase tracking-wider gap-3 shadow-lg hover:shadow-primary/20 transition-all"
+                >
+                  Send Request <ArrowRight className="h-6 w-6" />
+                </Button>
+              </div>
+              <p className="text-[10px] text-center text-muted-foreground italic mt-4">
+                * This is an estimate. Final prices will be confirmed by the shop owner.
+              </p>
+            </div>
+          </section>
+        )}
       </main>
 
-      {/* Floating Bottom Bar */}
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t p-6 shadow-2xl z-50">
-          <div className="max-w-5xl mx-auto flex items-center justify-between gap-6">
-            <div>
-              <div className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Estimate</div>
-              <div className="text-2xl font-black text-primary">{fmtINR(total)}</div>
-            </div>
-            <Button onClick={handleSendRequest} size="lg" className="h-14 px-10 text-lg font-black uppercase tracking-wider gap-2">
-              Send Request <ArrowRight className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      )}
       <InstallPrompt />
       <OfflineStatus />
     </div>

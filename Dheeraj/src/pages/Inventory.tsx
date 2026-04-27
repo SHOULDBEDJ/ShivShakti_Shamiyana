@@ -52,22 +52,32 @@ const Inventory = () => {
 
   const removeItem = async (id: number) => {
     if (!confirm(`Delete this item? This cannot be undone.`)) return;
+    
+    const previousItems = [...items];
+    setItems(prev => prev.filter(i => i.id !== id));
+
     try {
       await api.deleteItem(id);
       toast.success("Item deleted");
       load();
     } catch (err) {
+      setItems(previousItems);
       toast.error("Failed to delete item");
     }
   };
 
   const removeCategory = async (id: number) => {
     if (!confirm(`Delete this category? Items within this category will become Non-Category Items.`)) return;
+    
+    const previousCategories = [...categories];
+    setCategories(prev => prev.filter(c => c.id !== id));
+
     try {
       await api.deleteCategory(id);
       toast.success("Category deleted");
       load();
     } catch (err) {
+      setCategories(previousCategories);
       toast.error("Failed to delete category");
     }
   };
@@ -194,12 +204,17 @@ const BorrowModule = ({ items = [], categories = [] }: { items?: any[], categori
 
   const removeBorrower = async (id: number) => {
     if (!confirm("Delete this borrower?")) return;
+    
+    const previousBorrowers = [...borrowers];
+    setBorrowers(prev => prev.filter(b => b.id !== id));
+
     try {
       await api.deleteVendor(id);
       toast.success("Removed");
       setSelectedBorrower(null);
       loadBorrowers();
     } catch (err) {
+      setBorrowers(previousBorrowers);
       toast.error("Failed to remove");
     }
   };
@@ -293,6 +308,16 @@ const BorrowChecklist = ({ borrowerId, items = [], categories = [] }: { borrower
 
     if (newQty < 0) return;
 
+    // Optimistic update
+    const previousBorrowed = [...borrowedItems];
+    if (newQty === 0) {
+      setBorrowedItems(prev => prev.filter(b => b.item_name !== it.name));
+    } else if (existing) {
+      setBorrowedItems(prev => prev.map(b => b.item_name === it.name ? { ...b, borrowed_quantity: newQty } : b));
+    } else {
+      setBorrowedItems(prev => [...prev, { item_name: it.name, borrowed_quantity: newQty, id: Date.now() }]);
+    }
+
     try {
       if (newQty === 0 && existing) {
          await api.deleteBorrow(existing.id);
@@ -306,6 +331,7 @@ const BorrowChecklist = ({ borrowerId, items = [], categories = [] }: { borrower
       }
       loadBorrowed();
     } catch (err) {
+      setBorrowedItems(previousBorrowed);
       toast.error("Update failed");
     }
   };

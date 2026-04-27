@@ -30,11 +30,16 @@ const Staff = () => {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this staff member?")) return;
+    
+    const previousList = [...list];
+    setList(prev => prev.filter(w => w.id !== id));
+
     try {
       await api.deleteWorker(id);
       toast.success("Staff deleted");
       load();
     } catch (err: any) {
+      setList(previousList);
       toast.error(err.message);
     }
   };

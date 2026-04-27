@@ -250,6 +250,7 @@ initDB();
 // Mock the execute method to avoid changing all server.js calls
 const originalExecute = db.execute ? db.execute.bind(db) : null;
 db.execute = async (options) => {
+  const { sql, args = [] } = typeof options === 'string' ? { sql: options } : options;
   if (useTurso) {
     const res = await originalExecute(options);
     return {
@@ -259,16 +260,7 @@ db.execute = async (options) => {
     };
   }
 
-  let sql, args;
-  if (typeof options === 'string') {
-    sql = options;
-    args = [];
-  } else {
-    sql = options.sql;
-    args = options.args || [];
-  }
-
-  const isSelect = sql.trim().toUpperCase().startsWith('SELECT');
+    const isSelect = sql.trim().toUpperCase().startsWith('SELECT');
   
   try {
     const stmt = db.prepare(sql);

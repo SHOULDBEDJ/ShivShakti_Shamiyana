@@ -38,7 +38,7 @@ const AlbumView = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] =false;
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -139,6 +139,10 @@ const AlbumView = () => {
 
   const deleteSelected = async () => {
     if (!confirm(`Delete ${selectedIds.length} photos? This cannot be undone.`)) return;
+    
+    const previousPhotos = [...photos];
+    setPhotos(prev => prev.filter(p => !selectedIds.includes(p.id)));
+
     try {
       await api.deletePhotosBulk(selectedIds);
       toast.success("Photos deleted");
@@ -146,6 +150,7 @@ const AlbumView = () => {
       setSelectMode(false);
       fetchData();
     } catch (err) {
+      setPhotos(previousPhotos);
       toast.error("Failed to delete photos");
     }
   };

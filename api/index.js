@@ -904,8 +904,11 @@ app.delete('/api/gallery/albums/:id', async (req, res) => {
 });
 
 app.get('/api/gallery/albums/:id/photos', async (req, res) => {
-  const { id } = req.params;
   try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Album ID is required' });
+
+    // Ensure we use the correct table name and parameterized query
     const result = await db.execute({
       sql: `
         SELECT p.*, (SELECT GROUP_CONCAT(tag) FROM gallery_photo_tags WHERE photo_id = p.id) as tags
@@ -913,10 +916,36 @@ app.get('/api/gallery/albums/:id/photos', async (req, res) => {
       `,
       args: [id]
     });
-    const photos = result.rows;
-    res.json(photos.map(p => ({ ...p, tags: p.tags ? p.tags.split(',') : [] })));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    const photos = result.rows || [];
+
+    // Map results safely and ensure correct file paths
+    const formattedPhotos = photos.map(p => {
+      if (!p) return null;
+      
+      let filePath = p.file_path;
+      
+      // If only filename or relative path without leading slash is stored, prepend /uploads/
+      if (filePath && !filePath.startsWith('http') && !filePath.startsWith('/')) {
+        // Avoid double /uploads if it already starts with 'uploads/'
+        if (filePath.startsWith('uploads/')) {
+          filePath = '/' + filePath;
+        } else {
+          filePath = `/uploads/${filePath}`;
+        }
+      }
+
+      return {
+        ...p,
+        file_path: filePath,
+        tags: p.tags ? p.tags.split(',') : []
+      };
+    }).filter(p => p !== null);
+
+    res.json(formattedPhotos);
+  } catch (error) {
+    console.error("PHOTO FETCH ERROR:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

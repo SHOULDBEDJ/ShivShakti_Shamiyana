@@ -38,6 +38,8 @@ const FunctionTypesSection = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
 
+
+
   const load = async () => {
     try {
       const data = await api.getFunctionTypes();
@@ -79,23 +81,21 @@ const FunctionTypesSection = () => {
   };
 
   const handleDelete = async (type: any) => {
+    if (!confirm(`Delete '${type.name}'? This will remove it from all booking form dropdowns.`)) return;
+    
+    // Optimistic update
+    const previousList = [...list];
+    setList(prev => prev.filter(f => f.id !== type.id));
+
     try {
       const res = await api.deleteFunctionType(type.id);
-      const msg = res.count > 0 
-        ? `This function type is used in ${res.count} existing bookings. Deleting it will not affect those bookings but it will be removed from the dropdown. Continue?`
-        : `Delete '${type.name}'? This will remove it from all booking form dropdowns.`;
-      
-      if (!confirm(msg)) return;
-      
-      // The delete already happened in the first step if we follow Section 2 logic strictly,
-      // but usually we check N > 0 BEFORE deleting.
-      // My backend deleted it then returned count. Let's assume we confirm BEFORE calling API in a real flow.
-      // Let's re-align: I'll make the backend return count without deleting if I want to be safe,
-      // OR I'll just accept that it's deleted and the user is informed.
-      // Re-running load to sync.
+      if (res.count > 0) {
+        toast.info(`Note: This function type was used in ${res.count} existing bookings. It has been removed from new dropdowns.`);
+      }
       toast.success("Function type deleted");
-      load();
+      load(); // Final sync
     } catch (err) {
+      setList(previousList); // Rollback
       toast.error("Failed to delete");
     }
   };

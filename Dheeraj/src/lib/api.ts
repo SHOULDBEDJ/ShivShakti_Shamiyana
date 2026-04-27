@@ -3,7 +3,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 export const api = {
   // Customers
   async searchCustomers(query: string) {
-    const res = await fetch(`${API_BASE_URL}/customers/search?query=${encodeURIComponent(query)}`);
+    const res = await fetch(`${API_BASE_URL}/customers/search?query=${encodeURIComponent(query)}`, { cache: 'no-store' });
     return res.json();
   },
   async createCustomer(data: { name: string; phone: string; place?: string }) {
@@ -15,21 +15,21 @@ export const api = {
     return res.json();
   },
   async generateCustomerID() {
-    const res = await fetch(`${API_BASE_URL}/generate/customer-id`);
+    const res = await fetch(`${API_BASE_URL}/generate/customer-id`, { cache: 'no-store' });
     return res.json();
   },
 
   // Bookings
   async generateBookingID() {
-    const res = await fetch(`${API_BASE_URL}/generate/booking-id`);
+    const res = await fetch(`${API_BASE_URL}/generate/booking-id`, { cache: 'no-store' });
     return res.json();
   },
   async getBookings(search = '', status = 'all') {
-    const res = await fetch(`${API_BASE_URL}/bookings?search=${encodeURIComponent(search)}&status=${status}`);
+    const res = await fetch(`${API_BASE_URL}/bookings?search=${encodeURIComponent(search)}&status=${status}`, { cache: 'no-store' });
     return res.json();
   },
   async getBooking(id: string) {
-    const res = await fetch(`${API_BASE_URL}/bookings/${id}`);
+    const res = await fetch(`${API_BASE_URL}/bookings/${id}`, { cache: 'no-store' });
     return res.json();
   },
   async createBooking(formData: FormData) {
@@ -78,7 +78,7 @@ export const api = {
   },
 
   async getPayments() {
-    const res = await fetch(`${API_BASE_URL}/payments`);
+    const res = await fetch(`${API_BASE_URL}/payments`, { cache: 'no-store' });
     return res.json();
   },
 
@@ -90,11 +90,11 @@ export const api = {
     return res.json();
   },
   async getOrderLinks() {
-    const res = await fetch(`${API_BASE_URL}/order-links`);
+    const res = await fetch(`${API_BASE_URL}/order-links`, { cache: 'no-store' });
     return res.json();
   },
   async validateOrderLink(token: string) {
-    const res = await fetch(`${API_BASE_URL}/public-orders/validate/${token}`);
+    const res = await fetch(`${API_BASE_URL}/public-orders/validate/${token}`, { cache: 'no-store' });
     return res.json();
   },
   async submitPublicOrder(token: string, data: any) {
@@ -106,14 +106,14 @@ export const api = {
     return res.json();
   },
   async checkPublicOrderStatus(token: string) {
-    const res = await fetch(`${API_BASE_URL}/public-orders/status/${token}`);
+    const res = await fetch(`${API_BASE_URL}/public-orders/status/${token}`, { cache: 'no-store' });
     return res.json();
   },
 
 
   // Inventory: Categories
   async getCategories() {
-    const res = await fetch(`${API_BASE_URL}/inventory/categories`);
+    const res = await fetch(`${API_BASE_URL}/inventory/categories`, { cache: 'no-store' });
     return res.json();
   },
   async createCategory(data: any) {
@@ -141,11 +141,11 @@ export const api = {
 
   // Inventory: Items
   async getItems() {
-    const res = await fetch(`${API_BASE_URL}/inventory/items`);
+    const res = await fetch(`${API_BASE_URL}/inventory/items`, { cache: 'no-store' });
     return res.json();
   },
   async getNonCategoryItems() {
-    const res = await fetch(`${API_BASE_URL}/inventory/items/non-category`);
+    const res = await fetch(`${API_BASE_URL}/inventory/items/non-category`, { cache: 'no-store' });
     return res.json();
   },
   async createItem(data: any) {
@@ -171,7 +171,7 @@ export const api = {
     return res.json();
   },
   async checkAvailability(id: number | string, quantity: number) {
-    const res = await fetch(`${API_BASE_URL}/inventory/items/${id}/availability?quantity=${quantity}`);
+    const res = await fetch(`${API_BASE_URL}/inventory/items/${id}/availability?quantity=${quantity}`, { cache: 'no-store' });
     return res.json();
   },
 
@@ -206,7 +206,7 @@ export const api = {
 
   // Vendor Borrows & Returns
   async getVendorBorrows(vendorId: number | string) {
-    const res = await fetch(`${API_BASE_URL}/vendors/${vendorId}/borrows`);
+    const res = await fetch(`${API_BASE_URL}/vendors/${vendorId}/borrows`, { cache: 'no-store' });
     return res.json();
   },
   async updateVendorReturn(borrowId: number | string, data: { return_quantity: number; amount_paid: number }) {
@@ -218,7 +218,7 @@ export const api = {
     return res.json();
   },
   async getVendorPayments(vendorId: number | string) {
-    const res = await fetch(`${API_BASE_URL}/vendors/${vendorId}/payments`);
+    const res = await fetch(`${API_BASE_URL}/vendors/${vendorId}/payments`, { cache: 'no-store' });
     return res.json();
   },
   async createManualBorrow(data: { vendor_id: number; item_name: string; item_id?: number | string; quantity: number }) {
@@ -240,7 +240,7 @@ export const api = {
 
   // Settings: Function Types
   async getFunctionTypes() {
-    const res = await fetch(`${API_BASE_URL}/settings/function-types`);
+    const res = await fetch(`${API_BASE_URL}/settings/function-types`, { cache: 'no-store' });
     return res.json();
   },
   async createFunctionType(name: string) {
@@ -270,7 +270,7 @@ export const api = {
 
   // Settings: Data Management
   async backupData() {
-    const res = await fetch(`${API_BASE_URL}/settings/backup`);
+    const res = await fetch(`${API_BASE_URL}/settings/backup`, { cache: 'no-store' });
     return res.json();
   },
   async restoreData(data: any) {
@@ -293,7 +293,7 @@ export const api = {
   // Gallery: Albums
   async getAlbums(params: any = {}) {
     const query = new URLSearchParams(params).toString();
-    const res = await fetch(`${API_BASE_URL}/gallery/albums?${query}`);
+    const res = await fetch(`${API_BASE_URL}/gallery/albums?${query}`, { cache: 'no-store' });
     return res.json();
   },
   async createAlbum(data: any) {
@@ -321,7 +321,7 @@ export const api = {
 
   // Gallery: Photos
   async getAlbumPhotos(albumId: number | string) {
-    const res = await fetch(`${API_BASE_URL}/gallery/albums/${albumId}/photos`);
+    const res = await fetch(`${API_BASE_URL}/gallery/albums/${albumId}/photos`, { cache: 'no-store' });
     return res.json();
   },
   async uploadPhotos(albumId: number | string, formData: FormData) {
@@ -362,17 +362,17 @@ export const api = {
     return res.json();
   },
   async getBookingAlbum(bookingId: string) {
-    const res = await fetch(`${API_BASE_URL}/gallery/booking/${bookingId}/album`);
+    const res = await fetch(`${API_BASE_URL}/gallery/booking/${bookingId}/album`, { cache: 'no-store' });
     return res.json();
   },
   async getInventoryAlbum(itemId: number | string) {
-    const res = await fetch(`${API_BASE_URL}/gallery/inventory/${itemId}/album`);
+    const res = await fetch(`${API_BASE_URL}/gallery/inventory/${itemId}/album`, { cache: 'no-store' });
     return res.json();
   },
 
   // Business Profile
   async getBusinessProfile() {
-    const res = await fetch(`${API_BASE_URL}/settings/business-profile`);
+    const res = await fetch(`${API_BASE_URL}/settings/business-profile`, { cache: 'no-store' });
     return res.json();
   },
   async updateBusinessProfile(formData: FormData) {
@@ -385,29 +385,29 @@ export const api = {
 
   // Reports
   async getMonthlyReport(month: string, year: string) {
-    const res = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}`);
+    const res = await fetch(`${API_BASE_URL}/reports/monthly?month=${month}&year=${year}`, { cache: 'no-store' });
     return res.json();
   },
   async getDailyReport(date: string) {
-    const res = await fetch(`${API_BASE_URL}/reports/daily?date=${date}`);
+    const res = await fetch(`${API_BASE_URL}/reports/daily?date=${date}`, { cache: 'no-store' });
     return res.json();
   },
   async getPendingPaymentsReport() {
-    const res = await fetch(`${API_BASE_URL}/reports/pending-payments`);
+    const res = await fetch(`${API_BASE_URL}/reports/pending-payments`, { cache: 'no-store' });
     return res.json();
   },
   async getBookingStatusReport(from: string, to: string, status: string) {
-    const res = await fetch(`${API_BASE_URL}/reports/booking-status?from=${from}&to=${to}&status=${status}`);
+    const res = await fetch(`${API_BASE_URL}/reports/booking-status?from=${from}&to=${to}&status=${status}`, { cache: 'no-store' });
     return res.json();
   },
   async getVendorBorrowsReport(vendorId: string, from: string, to: string) {
-    const res = await fetch(`${API_BASE_URL}/reports/vendor-borrows?vendor_id=${vendorId}&from=${from}&to=${to}`);
+    const res = await fetch(`${API_BASE_URL}/reports/vendor-borrows?vendor_id=${vendorId}&from=${from}&to=${to}`, { cache: 'no-store' });
     return res.json();
   },
 
   // Staff (Workers)
   async getWorkers() {
-    const res = await fetch(`${API_BASE_URL}/workers`);
+    const res = await fetch(`${API_BASE_URL}/workers`, { cache: 'no-store' });
     return res.json();
   },
   async createWorker(data: any) {
@@ -435,7 +435,7 @@ export const api = {
 
   // Expenses
   async getExpenses() {
-    const res = await fetch(`${API_BASE_URL}/expenses`);
+    const res = await fetch(`${API_BASE_URL}/expenses`, { cache: 'no-store' });
     return res.json();
   },
   async createExpense(data: any) {
@@ -453,7 +453,7 @@ export const api = {
     return res.json();
   },
   async getExpenseTypes() {
-    const res = await fetch(`${API_BASE_URL}/settings/expense-types`);
+    const res = await fetch(`${API_BASE_URL}/settings/expense-types`, { cache: 'no-store' });
     return res.json();
   },
   async createExpenseType(name: string) {
@@ -482,7 +482,7 @@ export const api = {
 
   // Profile
   async getProfile() {
-    const res = await fetch(`${API_BASE_URL}/profile`);
+    const res = await fetch(`${API_BASE_URL}/profile`, { cache: 'no-store' });
     return res.json();
   },
   async updateProfile(data: any) {

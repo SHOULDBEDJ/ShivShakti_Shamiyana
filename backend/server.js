@@ -20,7 +20,7 @@ const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_
 
 // Ensure upload directories exist (Local fallback)
 const dataDir = path.join(__dirname, 'data');
-const uploadDir = path.join(dataDir, 'uploads');
+const uploadDir = path.join(__dirname, 'uploads');
 const voiceNotesDir = path.join(uploadDir, 'voice_notes');
 const galleryDir = path.join(uploadDir, 'gallery');
 const settingsDir = path.join(uploadDir, 'settings');
@@ -33,7 +33,7 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Static files
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Multer Memory Storage (Better for Supabase/Vercel)
@@ -900,10 +900,11 @@ app.delete('/api/gallery/albums/:id', async (req, res) => {
 });
 
 app.get('/api/gallery/albums/:id/photos', async (req, res) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ error: 'Album ID is required' });
-
   try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Album ID is required' });
+
+    // Use parameterized query with correct table name
     const result = await db.execute({
       sql: `
         SELECT p.*, (SELECT GROUP_CONCAT(tag) FROM gallery_photo_tags WHERE photo_id = p.id) as tags
@@ -913,19 +914,34 @@ app.get('/api/gallery/albums/:id/photos', async (req, res) => {
     });
 
     const photos = result.rows || [];
-    // Ensure each photo has a valid path and tags are parsed correctly
-    const formattedPhotos = photos.map(p => ({
-      ...p,
-      file_path: p.file_path && !p.file_path.startsWith('http') && !p.file_path.startsWith('/') 
-                 ? `/uploads/${p.file_path}` 
-                 : p.file_path,
-      tags: p.tags ? p.tags.split(',') : []
-    }));
+
+    // Map results safely and ensure correct file paths
+    const formattedPhotos = photos.map(p => {
+      if (!p) return null;
+      
+      let filePath = p.file_path;
+      
+      // If only filename or relative path without leading slash is stored, prepend /uploads/
+      if (filePath && !filePath.startsWith('http') && !filePath.startsWith('/')) {
+        // Avoid double /uploads if it already starts with 'uploads/'
+        if (filePath.startsWith('uploads/')) {
+          filePath = '/' + filePath;
+        } else {
+          filePath = `/uploads/${filePath}`;
+        }
+      }
+
+      return {
+        ...p,
+        file_path: filePath,
+        tags: p.tags ? p.tags.split(',') : []
+      };
+    }).filter(p => p !== null);
 
     res.json(formattedPhotos);
-  } catch (err) {
-    console.error("!!! GALLERY FETCH ERROR !!!", err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("PHOTO FETCH ERROR:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1371,6 +1387,16 @@ app.post('/api/settings/expense-types', async (req, res) => {
 
 
 // --- BUSINESS PROFILE ---
+app.get('/api/settings/business-profile', async (req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('BUSINESS PROFILE ERROR:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/profile', async (req, res) => {
   try {
     const result = await db.execute('SELECT * FROM business_profile WHERE id = 1');
@@ -1512,7 +1538,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- SPA WILDCARD ---
-app.get(/.*/, (req, res) => {
+app.get(/^(?!\/api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
