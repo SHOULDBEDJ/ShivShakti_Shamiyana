@@ -171,7 +171,7 @@ const Gallery = () => {
                   <div className="aspect-[4/3] relative bg-muted flex items-center justify-center overflow-hidden">
                     {album.cover_photo_path ? (
                         <img 
-                          src={`${FILE_BASE_URL}/${album.cover_photo_path}`} 
+                          src={`${FILE_BASE_URL}${album.cover_photo_path}`} 
                           alt={album.name} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
@@ -210,7 +210,7 @@ const Gallery = () => {
                 <>
                   <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
                     {album.cover_photo_path ? (
-                      <img src={`${FILE_BASE_URL}/${album.cover_photo_path}`} className="w-full h-full object-cover" />
+                      <img src={`${FILE_BASE_URL}${album.cover_photo_path}`} className="w-full h-full object-cover" />
                     ) : (
 
                       <ImageIcon className="h-6 w-6 opacity-20" />

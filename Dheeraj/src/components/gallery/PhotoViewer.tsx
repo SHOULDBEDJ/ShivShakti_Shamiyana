@@ -122,7 +122,7 @@ export const PhotoViewer = ({ photos, initialIndex, onClose, onDelete }: PhotoVi
         
         <div className="relative max-w-full max-h-full group">
           <img 
-            src={`${FILE_BASE_URL}/${photo.file_path}`} 
+            src={`${FILE_BASE_URL}${photo.file_path}`} 
             alt={photo.caption || "Gallery"} 
             className="max-w-full max-h-[80vh] object-contain shadow-2xl rounded"
           />

@@ -38,7 +38,7 @@ const AlbumView = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [uploading, setUploading] =false;
+  const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -238,7 +238,7 @@ const AlbumView = () => {
               onClick={() => selectMode ? toggleSelect(photo.id) : setViewerPhoto(photo)}
             >
               <img 
-                src={`${FILE_BASE_URL}/${photo.file_path}`} 
+                src={`${FILE_BASE_URL}${photo.file_path}`} 
                 className="w-full h-full object-cover transition-transform group-hover:scale-105" 
                 loading="lazy" 
               />
