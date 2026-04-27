@@ -1487,10 +1487,10 @@ app.put('/api/profile', settingsUpload.fields([
 
   try {
     if (req.files?.['photo_url']) {
-      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
+      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
     }
     if (req.files?.['deity_image']) {
-      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
+      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
     }
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
     if (existing.rows.length > 0) {
@@ -1547,10 +1547,10 @@ app.post('/api/settings/business-profile', settingsUpload.fields([
 
   try {
     if (req.files?.['photo_url']) {
-      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
+      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
     }
     if (req.files?.['deity_image']) {
-      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
+      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
     }
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
     if (existing.rows.length > 0) {
@@ -1599,7 +1599,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       // Import/use the supabase upload helper if it exists
       // In this file, supabase is defined globally if configured
       if (typeof uploadToSupabase === 'function') {
-        url = await uploadToSupabase(req.file, 'settings');
+        url = await uploadToSupabase(req.file, 'gallery');
       } else {
         url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
       }

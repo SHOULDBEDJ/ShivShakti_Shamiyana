@@ -52,7 +52,7 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(({
           {/* Logo / Deity Image */}
           <div className="w-[80px] h-[80px] flex-shrink-0 border border-black flex items-center justify-center bg-gray-50 overflow-hidden">
             {profile.photo_url ? (
-              <img src={profile.photo_url} alt="Logo" className="w-full h-full object-contain grayscale" />
+              <img src={profile.photo_url} alt="Logo" className="w-full h-full object-contain" />
             ) : profile.deity_image_path ? (
               <img src={`${API_BASE_URL.replace('/api', '')}/${profile.deity_image_path}`} alt="Deity" className="w-full h-full object-contain grayscale" />
             ) : (

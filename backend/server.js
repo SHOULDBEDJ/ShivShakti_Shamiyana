@@ -1417,8 +1417,8 @@ app.put('/api/profile', upload.fields([{ name: 'photo_url', maxCount: 1 }, { nam
   let photo_url = req.body.photo_url, deity_image_path = req.body.deity_image_path;
   
   try {
-    if (req.files?.['photo_url']) photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${Date.now()}_${req.files['photo_url'][0].originalname}`;
-    if (req.files?.['deity_image']) deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${Date.now()}_${req.files['deity_image'][0].originalname}`;
+    if (req.files?.['photo_url']) photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'gallery') : `/uploads/settings/${Date.now()}_${req.files['photo_url'][0].originalname}`;
+    if (req.files?.['deity_image']) deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'gallery') : `/uploads/settings/${Date.now()}_${req.files['deity_image'][0].originalname}`;
     
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
     const sql = existing.rows.length > 0 
@@ -1542,7 +1542,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     
     let url;
     if (supabase) {
-      url = await uploadToSupabase(req.file, 'settings'); // Using 'settings' bucket for profile/general uploads
+      url = await uploadToSupabase(req.file, 'gallery'); // Using 'gallery' bucket which is confirmed to exist
     } else {
       url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
