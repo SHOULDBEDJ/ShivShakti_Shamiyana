@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ const Bookings = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [initialData, setInitialData] = useState<any>(null);
 
   // Modals
   const [isPendingPaymentModalOpen, setIsPendingPaymentModalOpen] = useState(false);
@@ -42,6 +45,16 @@ const Bookings = () => {
   useEffect(() => {
     loadBookings();
   }, [search, statusFilter, view]);
+
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      setInitialData({ 
+        delivery_takeaway_date: dateParam.includes('T') ? dateParam : `${dateParam}T10:00` 
+      });
+      setView('create');
+    }
+  }, [searchParams]);
 
   const handleStatusChange = async (id: string, status: string) => {
     if (status === 'returned') {
@@ -103,8 +116,20 @@ const Bookings = () => {
 
   return (
     <>
-      {view === 'create' && <BookingForm onClose={() => setView('list')} onSave={loadBookings} />}
-      {view === 'edit' && <BookingForm initialData={selectedBooking} onClose={() => setView('list')} onSave={loadBookings} />}
+      {view === 'create' && (
+        <BookingForm 
+          initialData={initialData} 
+          onClose={() => { setView('list'); setInitialData(null); }} 
+          onSave={() => { setView('list'); setInitialData(null); loadBookings(); }} 
+        />
+      )}
+      {view === 'edit' && (
+        <BookingForm 
+          initialData={selectedBooking} 
+          onClose={() => { setView('list'); setSelectedBooking(null); }} 
+          onSave={() => { setView('list'); setSelectedBooking(null); loadBookings(); }} 
+        />
+      )}
       {view === 'return' && <ReturnForm booking={selectedBooking} onClose={() => setView('list')} onComplete={loadBookings} />}
       {view === 'detail' && (
         <BookingDetails 

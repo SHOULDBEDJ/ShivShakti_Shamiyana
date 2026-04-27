@@ -329,6 +329,11 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Upload photos failed:", text);
+      throw new Error(text);
+    }
     return res.json();
   },
   async updatePhoto(id: number | string, data: any) {
@@ -380,6 +385,11 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Update profile failed:", text);
+      throw new Error(text);
+    }
     return res.json();
   },
 
@@ -500,6 +510,11 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Upload file failed:", text);
+      throw new Error(text);
+    }
     return res.json();
   },
 };

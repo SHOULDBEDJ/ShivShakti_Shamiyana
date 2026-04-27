@@ -1475,6 +1475,11 @@ app.put('/api/profile', settingsUpload.fields([
   { name: 'photo_url', maxCount: 1 },
   { name: 'deity_image', maxCount: 1 }
 ]), async (req, res) => {
+  console.log("Profile update request received");
+  if (!supabase) {
+    console.warn("Supabase client not initialized. Check your environment variables.");
+  }
+  
   const { 
     business_name, name_kn, owner_name, blessing_kn, 
     phone, phone1, phone2, phone3, 

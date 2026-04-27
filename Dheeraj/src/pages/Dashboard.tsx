@@ -243,12 +243,27 @@ const Dashboard = () => {
             <SheetTitle className="font-display text-2xl">{dateDrill && fmtDate(dateDrill.date)}</SheetTitle>
           </SheetHeader>
           <div className="mt-5 space-y-2">
-            {dateDrill?.rows.map((b) => (
-              <button key={b.id} onClick={() => { setDrawerBooking(b); setDateDrill(null); }} className="w-full text-left border rounded-lg p-3 hover:bg-muted/30 transition-colors">
-                <div className="flex justify-between font-medium"><span>{b.customer_name}</span><span>{fmtINR(b.total_amount)}</span></div>
-                <div className="text-xs text-muted-foreground">{b.booking_id} · {b.phone_number}</div>
-              </button>
-            ))}
+            {dateDrill && dateDrill.rows.length > 0 ? (
+              dateDrill.rows.map((b) => (
+                <button key={b.id} onClick={() => { setDrawerBooking(b); setDateDrill(null); }} className="w-full text-left border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex justify-between font-medium"><span>{b.customer_name}</span><span>{fmtINR(b.total_amount)}</span></div>
+                  <div className="text-xs text-muted-foreground">{b.booking_id} · {b.phone_number}</div>
+                </button>
+              ))
+            ) : (
+              <div className="p-8 text-center space-y-6">
+                <div className="bg-muted rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-2">
+                  <CalendarCheck2 className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-display text-xl">{t("noBookingsOnDate") || "No bookings found"}</h4>
+                  <p className="text-sm text-muted-foreground">This date is currently available for new orders.</p>
+                </div>
+                <Button className="w-full h-12 text-base gap-2" onClick={() => { nav(`/bookings?date=${dateDrill?.date}`); setDateDrill(null); }}>
+                  <Plus className="h-5 w-5" /> {t("takeNewBooking") || "Take New Booking"}
+                </Button>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
