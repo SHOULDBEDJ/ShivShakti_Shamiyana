@@ -9,8 +9,27 @@ const sharp = require('sharp');
 require('dotenv').config();
 const db = require('./database');
 
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Supabase Setup
+const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+// Helper for Supabase Upload
+async function uploadToSupabase(file, bucket, folder = '') {
+  if (!supabase) return null;
+  const fileName = `${folder}${Date.now()}_${file.originalname}`;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(fileName, file.buffer, { contentType: file.mimetype });
+
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return publicUrl;
+}
 
 // Ensure upload directories exist (with safety for read-only environments like Vercel)
 const isVercel = process.env.VERCEL || process.env.NOW_BUILDER;
@@ -50,19 +69,20 @@ const voiceStorage = multer.diskStorage({
 const voiceUpload = multer({ storage: voiceStorage });
 
 // Multer setup for settings images
-const settingsStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, settingsDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
-  }
+const settingsUpload = multer({ 
+  storage: supabase ? multer.memoryStorage() : multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, settingsDir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
+    }
+  })
 });
-const settingsUpload = multer({ storage: settingsStorage });
 
 // General upload for single files
 const upload = multer({ 
-  storage: multer.diskStorage({
+  storage: supabase ? multer.memoryStorage() : multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
   })
@@ -339,8 +359,16 @@ app.put('/api/bookings/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   try {
+    // Also ensure pending_amount is set correctly if it was somehow 0 (e.g. from a public order)
     await db.execute({
-      sql: 'UPDATE bookings SET order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE booking_id = ?',
+      sql: `UPDATE bookings 
+            SET order_status = ?, 
+                pending_amount = CASE 
+                  WHEN pending_amount = 0 THEN total_amount - advance_amount - discount_amount 
+                  ELSE pending_amount 
+                END,
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE booking_id = ?`,
       args: [status, id]
     });
     res.json({ message: 'Status updated' });
@@ -1443,10 +1471,9 @@ app.get('/api/settings/business-profile', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/profile', settingsUpload.fields([
+app.put('/api/profile', settingsUpload.fields([
   { name: 'photo_url', maxCount: 1 },
-  { name: 'deity_image', maxCount: 1 },
-  { name: 'static_qr', maxCount: 1 }
+  { name: 'deity_image', maxCount: 1 }
 ]), async (req, res) => {
   const { 
     business_name, name_kn, owner_name, blessing_kn, 
@@ -1455,11 +1482,16 @@ app.post('/api/profile', settingsUpload.fields([
     upi_id, upi_name 
   } = req.body;
 
-  const photo_url = req.files?.['photo_url'] ? `/uploads/settings/${req.files['photo_url'][0].filename}` : req.body.photo_url;
-  const deity_image_path = req.files?.['deity_image'] ? `/uploads/settings/${req.files['deity_image'][0].filename}` : req.body.deity_image_path;
-  const static_qr_path = req.files?.['static_qr'] ? `/uploads/settings/${req.files['static_qr'][0].filename}` : req.body.static_qr_path;
+  let photo_url = req.body.photo_url;
+  let deity_image_path = req.body.deity_image_path;
 
   try {
+    if (req.files?.['photo_url']) {
+      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
+    }
+    if (req.files?.['deity_image']) {
+      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
+    }
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
     if (existing.rows.length > 0) {
       await db.execute({
@@ -1467,14 +1499,14 @@ app.post('/api/profile', settingsUpload.fields([
                 business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
                 phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
                 address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
-                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?,
+                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?,
                 updated_at = CURRENT_TIMESTAMP 
               WHERE id = 1`,
         args: [
           business_name, name_kn, owner_name, blessing_kn, 
           phone, phone1, phone2, phone3, 
           address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+          photo_url, deity_image_path, upi_id, upi_name
         ]
       });
     } else {
@@ -1483,13 +1515,13 @@ app.post('/api/profile', settingsUpload.fields([
                 id, business_name, name_kn, owner_name, blessing_kn, 
                 phone, phone1, phone2, phone3, 
                 address, address1_kn, address2_kn, address3_kn, 
-                photo_url, deity_image_path, upi_id, upi_name, static_qr_path
-              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                photo_url, deity_image_path, upi_id, upi_name
+              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           business_name, name_kn, owner_name, blessing_kn, 
           phone, phone1, phone2, phone3, 
           address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+          photo_url, deity_image_path, upi_id, upi_name
         ]
       });
     }
@@ -1497,13 +1529,12 @@ app.post('/api/profile', settingsUpload.fields([
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Alias for frontend compatibility
+// Alias for frontend compatibility (POST version just in case)
 app.post('/api/settings/business-profile', settingsUpload.fields([
   { name: 'photo_url', maxCount: 1 },
-  { name: 'deity_image', maxCount: 1 },
-  { name: 'static_qr', maxCount: 1 }
+  { name: 'deity_image', maxCount: 1 }
 ]), async (req, res) => {
-  // Same logic as /api/profile post
+  // Same logic as /api/profile put
   const { 
     business_name, name_kn, owner_name, blessing_kn, 
     phone, phone1, phone2, phone3, 
@@ -1511,11 +1542,16 @@ app.post('/api/settings/business-profile', settingsUpload.fields([
     upi_id, upi_name 
   } = req.body;
 
-  const photo_url = req.files?.['photo_url'] ? `/uploads/settings/${req.files['photo_url'][0].filename}` : req.body.photo_url;
-  const deity_image_path = req.files?.['deity_image'] ? `/uploads/settings/${req.files['deity_image'][0].filename}` : req.body.deity_image_path;
-  const static_qr_path = req.files?.['static_qr'] ? `/uploads/settings/${req.files['static_qr'][0].filename}` : req.body.static_qr_path;
+  let photo_url = req.body.photo_url;
+  let deity_image_path = req.body.deity_image_path;
 
   try {
+    if (req.files?.['photo_url']) {
+      photo_url = supabase ? await uploadToSupabase(req.files['photo_url'][0], 'settings') : `/uploads/settings/${req.files['photo_url'][0].filename}`;
+    }
+    if (req.files?.['deity_image']) {
+      deity_image_path = supabase ? await uploadToSupabase(req.files['deity_image'][0], 'settings') : `/uploads/settings/${req.files['deity_image'][0].filename}`;
+    }
     const existing = await db.execute('SELECT id FROM business_profile WHERE id = 1');
     if (existing.rows.length > 0) {
       await db.execute({
@@ -1523,14 +1559,14 @@ app.post('/api/settings/business-profile', settingsUpload.fields([
                 business_name = ?, name_kn = ?, owner_name = ?, blessing_kn = ?, 
                 phone = ?, phone1 = ?, phone2 = ?, phone3 = ?, 
                 address = ?, address1_kn = ?, address2_kn = ?, address3_kn = ?, 
-                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?, static_qr_path = ?,
+                photo_url = ?, deity_image_path = ?, upi_id = ?, upi_name = ?,
                 updated_at = CURRENT_TIMESTAMP 
               WHERE id = 1`,
         args: [
           business_name, name_kn, owner_name, blessing_kn, 
           phone, phone1, phone2, phone3, 
           address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+          photo_url, deity_image_path, upi_id, upi_name
         ]
       });
     } else {
@@ -1539,13 +1575,13 @@ app.post('/api/settings/business-profile', settingsUpload.fields([
                 id, business_name, name_kn, owner_name, blessing_kn, 
                 phone, phone1, phone2, phone3, 
                 address, address1_kn, address2_kn, address3_kn, 
-                photo_url, deity_image_path, upi_id, upi_name, static_qr_path
-              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                photo_url, deity_image_path, upi_id, upi_name
+              ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           business_name, name_kn, owner_name, blessing_kn, 
           phone, phone1, phone2, phone3, 
           address, address1_kn, address2_kn, address3_kn, 
-          photo_url, deity_image_path, upi_id, upi_name, static_qr_path
+          photo_url, deity_image_path, upi_id, upi_name
         ]
       });
     }
@@ -1554,10 +1590,28 @@ app.post('/api/settings/business-profile', settingsUpload.fields([
 });
 
 // --- UPLOAD ---
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-  res.json({ url });
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
+    let url;
+    if (process.env.SUPABASE_URL) {
+      // Import/use the supabase upload helper if it exists
+      // In this file, supabase is defined globally if configured
+      if (typeof uploadToSupabase === 'function') {
+        url = await uploadToSupabase(req.file, 'settings');
+      } else {
+        url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      }
+    } else {
+      url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+    
+    res.json({ url });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = app;
