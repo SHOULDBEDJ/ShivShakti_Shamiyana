@@ -1053,29 +1053,58 @@ app.get('/api/gallery/albums/:id/photos', async (req, res) => {
   }
 });
 
-app.post('/api/gallery/albums/:id/photos', galleryUpload.array('photos'), async (req, res) => {
+app.post(['/api/gallery/albums/:id/photos', '/gallery/albums/:id/photos'], galleryUpload.array('photos'), async (req, res) => {
   const { id } = req.params;
   const { caption, tags, date_taken } = req.body;
   const files = req.files;
   if (!files || files.length === 0) return res.status(400).json({ error: 'No photos uploaded' });
+  
   try {
     const results = [];
-    const albumDir = path.join(galleryDir, id.toString());
-    if (!fs.existsSync(albumDir)) fs.mkdirSync(albumDir, { recursive: true });
-    
     for (const file of files) {
+      let finalBuffer = file.buffer;
+      
+      // Optional: Resize if it's an image
+      if (file.mimetype.startsWith('image/')) {
+        try {
+          finalBuffer = await sharp(file.buffer)
+            .resize({ width: 1920, withoutEnlargement: true })
+            .toBuffer();
+        } catch (resizeErr) {
+          console.warn("Resize failed, using original:", resizeErr.message);
+        }
+      }
+
+      let fileUrl;
       const storedFilename = `${crypto.randomUUID()}${path.extname(file.originalname)}`;
-      const relativePath = `uploads/gallery/${id}/${storedFilename}`;
-      const fullPath = path.join(__dirname, relativePath);
-      await sharp(file.buffer).resize({ width: 1920, withoutEnlargement: true }).toFile(fullPath);
+      
+      if (supabase) {
+        // Upload to Supabase 'gallery' bucket
+        const fileName = `albums/${id}/${storedFilename}`;
+        const { data, error } = await supabase.storage
+          .from('gallery')
+          .upload(fileName, finalBuffer, { contentType: file.mimetype });
+        
+        if (error) throw error;
+        const { data: { publicUrl } } = supabase.storage.from('gallery').getPublicUrl(data.path);
+        fileUrl = publicUrl;
+      } else {
+        // Fallback to local or /tmp
+        const albumDir = path.join(galleryDir, id.toString());
+        if (!fs.existsSync(albumDir)) fs.mkdirSync(albumDir, { recursive: true });
+        const fullPath = path.join(albumDir, storedFilename);
+        fs.writeFileSync(fullPath, finalBuffer);
+        fileUrl = `/uploads/gallery/${id}/${storedFilename}`;
+      }
       
       const info = await db.execute({
         sql: `
           INSERT INTO gallery_photos (album_id, original_filename, stored_filename, file_path, file_size, caption, date_taken)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-        args: [id, file.originalname, storedFilename, relativePath, file.size, caption, date_taken || new Date().toISOString().slice(0, 10)]
+        args: [id, file.originalname, storedFilename, fileUrl, file.size, caption, date_taken || new Date().toISOString().slice(0, 10)]
       });
+      
       const photoId = info.lastInsertRowid;
       
       if (tags) {
@@ -1084,10 +1113,11 @@ app.post('/api/gallery/albums/:id/photos', galleryUpload.array('photos'), async 
           await db.execute({ sql: 'INSERT INTO gallery_photo_tags (photo_id, tag) VALUES (?, ?)', args: [photoId, t] });
         }
       }
-      results.push({ id: photoId, stored_filename: storedFilename, file_path: relativePath });
+      results.push({ id: photoId, stored_filename: storedFilename, file_path: fileUrl });
     }
     res.status(201).json(results);
   } catch (err) {
+    console.error("GALLERY UPLOAD ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
